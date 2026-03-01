@@ -115,7 +115,8 @@ Strip unwanted flags from commands. `omit("--no-verify")` removes the flag, lets
 ### Seven — make install + versioning ✓
 Makefile with `build`, `test`, `install`. Version baked in from `git describe` at compile time. TTY detection prints version when run interactively.
 
-### Six
+### Six — live testing
+Run graunde in QNTX with Claude Code. Verify `go test` gets amended, `--no-verify` gets stripped, `additionalContext` reaches Claude.
 
 ### Five
 
