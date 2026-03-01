@@ -1,0 +1,7 @@
+{
+    "name": "graunde",
+    "description": "Workflow enforcement for Claude Code",
+    "targetType": "executable",
+    "targetName": "graunde",
+    "sourcePaths": ["source"]
+}
