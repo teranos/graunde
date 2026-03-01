@@ -21,6 +21,6 @@ Control control(string name, Cmd c, Arg a) {
     return Control(name, c, a);
 }
 
-enum allControls = [
+static immutable allControls = [
     control("go-test-args", cmd("go test"), arg(`-tags "rustsqlite,qntxwasm" -short`)),
 ];

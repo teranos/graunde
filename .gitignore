@@ -14,6 +14,10 @@
 # Executables
 *.exe
 
+# Binaries
+graunde
+graunde-test-application
+
 # DUB
 .dub
 docs.json
