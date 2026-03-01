@@ -10,32 +10,38 @@ The only enforcement that works is at the tool level — a PreToolUse hook that 
 
 ## How it works
 
-Runs as a Claude Code `PreToolUse` hook on `Bash`. Reads JSON from stdin, extracts the command, checks it against controls compiled into the binary. Three possible outcomes:
+Runs as a Claude Code `PreToolUse` hook on `Bash`. Reads JSON from stdin, extracts the command, checks it against controls compiled into the binary. Two actions:
 
-- **arg** — amend the command with missing arguments, allow execution (always works)
-- **deny** — block the command with a reason on stderr (always works)
-- **allow** — no match, pass through silently
+- **arg** — add missing arguments after the matched command
+- **omit** — strip unwanted flags from the command
 
-Controls are D source, evaluated at compile time via CTFE. No runtime config, no file I/O, no dependencies. The binary is the config.
+Both silently amend and allow. Unmatched commands pass through (exit 0, no output). Every amendment includes an `additionalContext` message so Claude learns why the command was changed.
+
+Controls are D source, compiled with `-betterC`. No runtime, no GC, no dependencies. The binary is the config.
 
 ## Language
 
-D. Compiled with LDC. Chosen for:
-- Rich stdlib: `std.json`, `std.algorithm` — no external dependencies
-- Native binary, instant startup
-- CTFE — controls are parsed at compile time, baked into the binary
+D with `-betterC`. Compiled with LDC. Chosen for:
+- No runtime, no GC — 8.7KB stripped binary, ~17ms latency
+- CTFE — controls evaluated at compile time, baked into the binary
 - `unittest` as a language keyword — tests live next to code
+- C interop for stdio without overhead
 
 ## Controls
 
 Controls are defined in `source/controls.d`. A control has:
 - `name` — identifier slug
 - `cmd` — substring to match against the command
-- `arg` — arguments to insert after the matched command
+- `arg` — arguments to insert after the matched command, OR
+- `omit` — flag to strip from the command
+- `msg` — context message sent to Claude via `additionalContext`
 
 ```d
-enum allControls = [
-    control("go-test-args", cmd("go test"), arg(`-tags "rustsqlite,qntxwasm" -short`)),
+static immutable allControls = [
+    control("go-test-args", cmd("go test"), arg(`-tags "rustsqlite,qntxwasm" -short`),
+        msg("Build tags and -short are required for go test in QNTX")),
+    control("no-skip-hooks", cmd("git"), omit("--no-verify"),
+        msg("Git hooks must not be bypassed, ever..")),
 ];
 ```
 
@@ -52,7 +58,7 @@ Commands are split on `|`, `;`, `&&` — each segment is checked independently.
 }
 ```
 
-**Output** (arg amendment):
+**Output** (amendment):
 ```json
 {
   "hookSpecificOutput": {
@@ -60,14 +66,13 @@ Commands are split on `|`, `;`, `&&` — each segment is checked independently.
     "permissionDecision": "allow",
     "updatedInput": {
       "command": "go test -tags \"rustsqlite,qntxwasm\" -short ./..."
-    }
+    },
+    "additionalContext": "Build tags and -short are required for go test in QNTX"
   }
 }
 ```
 
 **Output** (no match): exit 0, no output.
-
-**Output** (deny): exit 2, reason on stderr.
 
 ## Hook registration
 
@@ -93,20 +98,18 @@ In `~/.claude/settings.json`:
 ### Ten — core engine ✓
 Stdin JSON parsing, control matching, arg amendment, pipe splitting, unit tests. One control (`go-test-args`) end to end.
 
-### Nine — betterC
-Drop the D runtime. No GC, no `std.json`, no exceptions. Hand-rolled JSON parsing for the one field we need.
+### Nine — betterC ✓
+Drop the D runtime. No GC, no `std.json`, no exceptions. Hand-rolled JSON parsing. 8.7KB binary, ~17ms latency.
 
-### Eight — omit
-Strip unwanted flags from commands. `omit("--no-verify")` removes the flag, lets the command through. First control: `no-skip-hooks`.
+### Eight — omit + additionalContext ✓
+Strip unwanted flags from commands. `omit("--no-verify")` removes the flag, lets the command through. `additionalContext` teaches Claude why commands were amended.
 
-### Seven — QNTX controls
-Full set of controls for the QNTX project: `sed`, `--no-verify`, `rm`, `kill`, force-push, `gh pr create`.
+### Seven — make install
+Makefile with `build`, `test`, `install`. `make install` builds release and copies to `~/.local/bin/`. Hook registration is manual.
 
-### Six — `--debug` flag
-Print loaded controls, match attempts, and decisions to stderr.
+### Six
 
-### Five — hook registration
-Wire graunde into Claude Code. Document installation.
+### Five
 
 ### Four — commencing countdown, engines on
 

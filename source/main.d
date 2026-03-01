@@ -60,10 +60,8 @@ const(char)[] extractCommand(const(char)[] json) {
 
 // Writes the hook JSON response to stdout.
 // The command is embedded in the JSON, with quotes escaped.
-void writeResponse(const(char)[] command) {
-    fputs(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","updatedInput":{"command":"`, stdout);
-    // Escape the command value for JSON
-    foreach (c; command) {
+void writeJsonString(const(char)[] s) {
+    foreach (c; s) {
         if (c == '"')
             fputs(`\"`, stdout);
         else if (c == '\\')
@@ -73,7 +71,14 @@ void writeResponse(const(char)[] command) {
             fwrite(&buf[0], 1, 1, stdout);
         }
     }
-    fputs(`"}}}`, stdout);
+}
+
+void writeResponse(const(char)[] command, const(char)[] context) {
+    fputs(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","updatedInput":{"command":"`, stdout);
+    writeJsonString(command);
+    fputs(`"},"additionalContext":"`, stdout);
+    writeJsonString(context);
+    fputs(`"}}`, stdout);
     fputs("\n", stdout);
 }
 
@@ -109,7 +114,7 @@ extern (C) int main() {
             full.put(command[0 .. cast(size_t) segIdx]);
             full.put(amended.slice());
             full.put(command[cast(size_t) segIdx + result.segment.length .. $]);
-            writeResponse(full.slice());
+            writeResponse(full.slice(), result.control.msg.value);
             return 0;
         }
     }
