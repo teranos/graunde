@@ -67,6 +67,7 @@ import controls : DB_PATH;
 
 // --- Branch name ---
 
+// NOTE: cwd is passed into popen unescaped. Trusted — comes from Claude Code's hook payload.
 const(char)[] getBranch(const(char)[] cwd) {
     __gshared char[256] branchBuf = 0;
     __gshared ZBuf cmdBuf;
@@ -191,25 +192,22 @@ void writeAttestation(
     const(char)[] toolUseId,
     const(char)[] command
 ) {
-    // 1. Open db
     sqlite3* db;
     if (sqlite3_open(DB_PATH.ptr, &db) != SQLITE_OK) {
         if (db !is null) sqlite3_close(db);
         return;
     }
 
-    // 3. Verify attestations table exists
+    // Verify attestations table exists
     if (sqlite3_exec(db, "SELECT 1 FROM attestations LIMIT 0\0".ptr, null, null, null) != SQLITE_OK) {
         sqlite3_close(db);
         return;
     }
 
-    // 4. Get branch and derive predicate
     auto branch = getBranch(cwd);
     auto pred = control.name;
     auto ts = formatTimestamp();
 
-    // 5. Build JSON values
     __gshared ZBuf subjects;
     __gshared ZBuf predicates;
     __gshared ZBuf contexts;
@@ -239,7 +237,6 @@ void writeAttestation(
     idBuf.reset();
     idBuf.put(toolUseId);
 
-    // 6. Prepare INSERT
     enum sql = "INSERT OR IGNORE INTO attestations (id, subjects, predicates, contexts, actors, timestamp, source, attributes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)\0";
 
     sqlite3_stmt* stmt;
@@ -247,8 +244,6 @@ void writeAttestation(
         sqlite3_close(db);
         return;
     }
-
-    // 7. Bind parameters
     sqlite3_bind_text(stmt, 1, idBuf.ptr(), cast(int) idBuf.len, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, subjects.ptr(), cast(int) subjects.len, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 3, predicates.ptr(), cast(int) predicates.len, SQLITE_TRANSIENT);
@@ -258,7 +253,7 @@ void writeAttestation(
     sqlite3_bind_text(stmt, 7, source.ptr(), cast(int) source.len, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 8, attributes.ptr(), cast(int) attributes.len, SQLITE_TRANSIENT);
 
-    // 8. Execute and cleanup
+    // Execute and cleanup
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     sqlite3_close(db);

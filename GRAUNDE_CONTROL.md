@@ -42,17 +42,23 @@ Controls are grouped by scope. Each scope has a `path` (where it fires) and a `d
 static immutable universal = [
     control("no-skip-hooks", cmd("git"), omit("--no-verify"),
         msg("Git hooks must not be bypassed, ever..")),
+    control("stage-checkpoint", cmd("git add"),
+        msg("A commit typically follows. Start thinking about the commit message — focus on why, not what.")),
+    control("pull-checkpoint", cmd("git pull"),
+        msg("Resolve conflicts if present before continuing")),
 ];
 
 static immutable checkpoints = [
     control("commit-checkpoint", cmd("git commit"),
         msg("Commit requires manual approval")),
     control("push-checkpoint", cmd("git push"),
-        msg("Pull first and resolve conflicts before pushing")),
+        msg("If you haven't pulled since the last commit, pull first and resolve conflicts before pushing")),
     control("tag-checkpoint", cmd("git tag"),
         msg("Check the latest tag first and ensure the new version follows semver")),
     control("pr-checkpoint", cmd("gh pr create"),
         msg("PR creation requires manual approval")),
+    control("pr-edit-checkpoint", cmd("gh pr edit"),
+        msg("Reference any docs edited or created in this PR")),
     control("branch-checkpoint", cmd("git checkout -b"),
         msg("Check main for unpushed commits and push them first. After creating the branch, push it and open a draft PR with a minimal description.")),
 ];
