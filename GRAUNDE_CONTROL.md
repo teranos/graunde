@@ -36,12 +36,19 @@ Controls are defined in `source/controls.d`. A control has:
 - `omit` — flag to strip from the command
 - `msg` — context message sent to Claude via `additionalContext`
 
-Controls are grouped by scope. Empty path = fires everywhere. Non-empty path = only fires when `cwd` contains the path.
+Controls are grouped by scope. Each scope has a `path` (where it fires) and a `decision` (`"allow"` or `"ask"`). Multiple scopes can match the same command — amendments and decisions compose.
 
 ```d
 static immutable universal = [
     control("no-skip-hooks", cmd("git"), omit("--no-verify"),
         msg("Git hooks must not be bypassed, ever..")),
+];
+
+static immutable checkpoints = [
+    control("commit-checkpoint", cmd("git commit"),
+        msg("Commit requires manual approval")),
+    control("pr-checkpoint", cmd("gh pr create"),
+        msg("PR creation requires manual approval")),
 ];
 
 static immutable qntx = [
@@ -50,8 +57,9 @@ static immutable qntx = [
 ];
 
 static immutable allScopes = [
-    Scope("", universal),
-    Scope("/QNTX", qntx),
+    Scope("", "allow", universal),
+    Scope("", "ask", checkpoints),
+    Scope("/QNTX", "allow", qntx),
 ];
 ```
 
@@ -129,7 +137,7 @@ Makefile with `build`, `test`, `install`. Version baked in from `git describe` a
 Live testing in QNTX revealed two bugs. First: `cmd("go test")` used substring matching, so `git commit -m "run go test before merging"` triggered the go-test-args control — corrupting a heredoc commit into the Ïúíþ artifact (`60b8829`). Fix: `commandMatch` does prefix-only matching — the command must start with the `cmd` string, followed by a space or end of segment. Second: JSON escape sequences (`\n`, `\t`, `\r`) in `extractCommand` were passed through as literal characters instead of being unescaped, breaking heredoc newlines in amended commands. Fix: proper escape handling in both `extractCommand` (unescape) and `writeJsonString` (re-escape).
 
 ### Five — scoped controls ✓
-Controls grouped by project scope. Universal controls fire everywhere, project-specific controls only when `cwd` contains the scope path. Extracts `cwd` from the hook payload. Refactored JSON extraction into `extractJsonString` to support multiple keys without duplication.
+Controls grouped by scope. Each scope has a path (where it fires) and a decision (`"allow"` or `"ask"`). Universal controls fire everywhere, project-specific controls only when `cwd` matches. Scopes compose — for a given command, all matching scopes contribute: the first amendment wins, the most restrictive decision wins. `git commit --no-verify` gets the flag stripped (universal/allow) AND the permission prompt (checkpoint/ask). Msg-only controls match without amending — just decision + context. Extracts `cwd` from the hook payload.
 
 ### Four — commencing countdown, engines on
 

@@ -5,6 +5,7 @@ import controls;
 struct Match {
     const(Control)* control;
     const(char)[] segment;
+    const(char)[] decision;
 }
 
 struct Buf {
@@ -82,19 +83,40 @@ Match checkCommand(const(char)[] command, const(char)[] cwd) {
         if (isSep) {
             auto segment = strip(command[start .. i]);
             if (segment.length > 0) {
+                // Scan all scopes — collect amendment and most restrictive decision
+                const(Control)* amendment = null;
+                const(Control)* fallback = null;
+                const(char)[] decision;
+
                 foreach (ref sc; allScopes) {
-                    // Empty path = universal, always matches
                     if (sc.path.length > 0 && !contains(cwd, sc.path))
                         continue;
                     foreach (ref c; sc.controls) {
                         if (commandMatch(segment, c.cmd.value)) {
-                            // Omit controls only match when the omit string is present
                             if (c.omit.value.length > 0 && !contains(segment, c.omit.value))
                                 continue;
-                            return Match(&c, segment);
+
+                            // First amendment control (has arg or omit)
+                            if (amendment is null && (c.arg.value.length > 0 || c.omit.value.length > 0))
+                                amendment = &c;
+
+                            // First match of any kind
+                            if (fallback is null)
+                                fallback = &c;
+
+                            // "ask" beats "allow"
+                            if (sc.decision == "ask")
+                                decision = "ask";
+                            else if (decision.length == 0)
+                                decision = sc.decision;
                         }
                     }
                 }
+
+                if (amendment !is null)
+                    return Match(amendment, segment, decision);
+                if (fallback !is null)
+                    return Match(fallback, segment, decision);
             }
             start = i + skip;
             if (skip > 0) {
@@ -105,7 +127,7 @@ Match checkCommand(const(char)[] command, const(char)[] cwd) {
         i++;
     }
 
-    return Match(null, "");
+    return Match(null, "", "");
 }
 
 // Builds the amended command in a static buffer.
@@ -257,4 +279,35 @@ unittest {
     auto result = checkCommand("git push --no-verify", QNTX);
     assert(result.control !is null);
     assert(result.control.name == "no-skip-hooks");
+}
+
+unittest {
+    // git commit triggers checkpoint with "ask" decision
+    auto result = checkCommand("git commit -m \"hello\"", OTHER);
+    assert(result.control !is null);
+    assert(result.control.name == "commit-checkpoint");
+    assert(result.decision == "ask");
+}
+
+unittest {
+    // gh pr create triggers checkpoint with "ask" decision
+    auto result = checkCommand("gh pr create --title \"fix\"", OTHER);
+    assert(result.control !is null);
+    assert(result.control.name == "pr-checkpoint");
+    assert(result.decision == "ask");
+}
+
+unittest {
+    // go test in QNTX gets "allow" decision from scope
+    auto result = checkCommand("go test ./...", QNTX);
+    assert(result.control !is null);
+    assert(result.decision == "allow");
+}
+
+unittest {
+    // git commit --no-verify: omit stripped AND checkpoint upgrades to "ask"
+    auto result = checkCommand("git commit --no-verify -m \"hello\"", OTHER);
+    assert(result.control !is null);
+    assert(result.control.name == "no-skip-hooks");
+    assert(result.decision == "ask");
 }

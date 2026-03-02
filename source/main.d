@@ -91,13 +91,23 @@ void writeJsonString(const(char)[] s) {
     }
 }
 
-void writeResponse(const(char)[] command, const(char)[] context) {
-    fputs(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","updatedInput":{"command":"`, stdout);
+void writeResponse(const(char)[] command, const(char)[] context, const(char)[] decision) {
+    fputs(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"`, stdout);
+    fputs2(decision);
+    fputs(`","updatedInput":{"command":"`, stdout);
     writeJsonString(command);
     fputs(`"},"additionalContext":"`, stdout);
     writeJsonString(context);
     fputs(`"}}`, stdout);
     fputs("\n", stdout);
+}
+
+// fputs for const(char)[] slices (fputs needs null-terminated strings)
+void fputs2(const(char)[] s) {
+    foreach (c; s) {
+        char[1] buf = c;
+        fwrite(&buf[0], 1, 1, stdout);
+    }
 }
 
 enum VERSION = import(".version");
@@ -140,6 +150,12 @@ extern (C) int main() {
     if (result.control is null)
         return 0;
 
+    // Msg-only control — no amendment, just decision + context
+    if (result.control.arg.value.length == 0 && result.control.omit.value.length == 0) {
+        writeResponse(command, result.control.msg.value, result.decision);
+        return 0;
+    }
+
     Buf amended;
     if (result.control.omit.value.length > 0)
         amended = applyOmit(result.control, result.segment);
@@ -154,7 +170,7 @@ extern (C) int main() {
             full.put(command[0 .. cast(size_t) segIdx]);
             full.put(amended.slice());
             full.put(command[cast(size_t) segIdx + result.segment.length .. $]);
-            writeResponse(full.slice(), result.control.msg.value);
+            writeResponse(full.slice(), result.control.msg.value, result.decision);
             return 0;
         }
     }
