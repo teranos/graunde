@@ -36,12 +36,22 @@ Controls are defined in `source/controls.d`. A control has:
 - `omit` — flag to strip from the command
 - `msg` — context message sent to Claude via `additionalContext`
 
+Controls are grouped by scope. Empty path = fires everywhere. Non-empty path = only fires when `cwd` contains the path.
+
 ```d
-static immutable allControls = [
-    control("go-test-args", cmd("go test"), arg(`-tags "rustsqlite,qntxwasm" -short`),
-        msg("Build tags and -short are required for go test in QNTX")),
+static immutable universal = [
     control("no-skip-hooks", cmd("git"), omit("--no-verify"),
         msg("Git hooks must not be bypassed, ever..")),
+];
+
+static immutable qntx = [
+    control("go-test-args", cmd("go test"), arg(`-tags "rustsqlite,qntxwasm" -short`),
+        msg("Build tags and -short are required for go test in QNTX")),
+];
+
+static immutable allScopes = [
+    Scope("", universal),
+    Scope("/QNTX", qntx),
 ];
 ```
 
@@ -118,8 +128,8 @@ Makefile with `build`, `test`, `install`. Version baked in from `git describe` a
 ### Six — the Ïúíþ incident ✓
 Live testing in QNTX revealed two bugs. First: `cmd("go test")` used substring matching, so `git commit -m "run go test before merging"` triggered the go-test-args control — corrupting a heredoc commit into the Ïúíþ artifact (`60b8829`). Fix: `commandMatch` does prefix-only matching — the command must start with the `cmd` string, followed by a space or end of segment. Second: JSON escape sequences (`\n`, `\t`, `\r`) in `extractCommand` were passed through as literal characters instead of being unescaped, breaking heredoc newlines in amended commands. Fix: proper escape handling in both `extractCommand` (unescape) and `writeJsonString` (re-escape).
 
-### Five — scoped controls
-Group controls by project scope. Universal controls fire everywhere, project-specific controls only fire when `cwd` matches. Graunde already receives `cwd` in the hook payload — scoping reads it and filters control groups accordingly. Controls stay clean, scoping lives one level up.
+### Five — scoped controls ✓
+Controls grouped by project scope. Universal controls fire everywhere, project-specific controls only when `cwd` contains the scope path. Extracts `cwd` from the hook payload. Refactored JSON extraction into `extractJsonString` to support multiple keys without duplication.
 
 ### Four — commencing countdown, engines on
 
