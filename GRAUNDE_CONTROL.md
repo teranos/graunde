@@ -152,11 +152,12 @@ Git workflow rituals and attestation-backed state. Graunde evolves from stateles
 
 **Phase 2 — libsqlite3 link.** Link graunde against libsqlite3 via C interop. Open the QNTX node db, write attestations on checkpoint fire. Subjects: branch name. Predicates: what happened. Actor: `graunde`. Source: `graunde v{VERSION}`.
 
-**Phase 3 — ritual diff.** Define expected ritual steps per workflow. On merge-gate controls (`gh pr merge`), query all attestations for the branch, diff against expected steps, nudge Claude about gaps. The ritual isn't a hardcoded sequence — it's emergent from what happened vs what should have.
+**Phase 3 — ritual diff.** Define expected ritual steps per workflow. On merge-gate controls (`gh pr merge`), query all attestations for the branch, diff against expected steps, nudge Claude about gaps. CI pass is an expected step — the diff doesn't care how the attestation arrived, only that it's present or absent. The ritual isn't a hardcoded sequence — it's emergent from what happened vs what should have.
 
-**Phase 4 — QNTX conduit.** With QNTX online, attestations from other sources (CI, other sessions, reactive agents) appear in the db. Graunde reads them on the next checkpoint and injects them into Claude's context. QNTX's awareness, Claude's hands.
+**Phase 4 — QNTX conduit.** The wire between external actors and Claude's context. CI is the first real actor — its verdict must travel from GitHub's runner into the QNTX node db so graunde can read it at the next checkpoint. With QNTX online, attestations from CI, other sessions, and reactive agents appear in the db. Graunde reads them and injects them into Claude's context via `additionalContext`. QNTX's awareness, Claude's hands.
 
 ### Three
+Register graunde for all tools, not just Bash. Currently graunde only sees shell commands — file edits, reads, and other tool operations are invisible. Attestation coverage is incomplete. Requires handling `tool_name` and `hook_event_name` in the payload to decide what to observe and what to gate.
 
 ### Two — check ignition
 

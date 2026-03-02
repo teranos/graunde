@@ -1,6 +1,7 @@
 module main;
 
 import matcher;
+import sqlite : writeAttestation;
 import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fprintf, fwrite;
 import core.stdc.stdlib : exit;
 import core.sys.posix.unistd : isatty;
@@ -71,6 +72,16 @@ const(char)[] extractCommand(const(char)[] json) {
 const(char)[] extractCwd(const(char)[] json) {
     __gshared char[4096] buf = 0;
     return extractJsonString(json, `"cwd"`, &buf[0], buf.length);
+}
+
+const(char)[] extractSessionId(const(char)[] json) {
+    __gshared char[128] buf = 0;
+    return extractJsonString(json, `"session_id"`, &buf[0], buf.length);
+}
+
+const(char)[] extractToolUseId(const(char)[] json) {
+    __gshared char[128] buf = 0;
+    return extractJsonString(json, `"tool_use_id"`, &buf[0], buf.length);
 }
 
 // Writes the hook JSON response to stdout.
@@ -145,7 +156,17 @@ extern (C) int main() {
     auto cwd = extractCwd(input);
     if (cwd is null) cwd = "";
 
+    auto sessionId = extractSessionId(input);
+    if (sessionId is null) sessionId = "";
+
+    auto toolUseId = extractToolUseId(input);
+    if (toolUseId is null) toolUseId = "unknown";
+
     auto result = checkCommand(command, cwd);
+
+    // Write attestation if a control matched
+    if (result.control !is null)
+        writeAttestation(result.control, cwd, sessionId, toolUseId, command);
 
     if (result.control is null)
         return 0;

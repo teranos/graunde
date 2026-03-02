@@ -57,6 +57,8 @@ static immutable universal = [
 ];
 
 static immutable checkpoints = [
+    control("stage-checkpoint", cmd("git add"),
+        msg("A commit typically follows. Start thinking about the commit message — focus on why, not what.")),
     control("commit-checkpoint", cmd("git commit"),
         msg("Commit requires manual approval")),
     control("push-checkpoint", cmd("git push"),
@@ -65,6 +67,8 @@ static immutable checkpoints = [
         msg("Check the latest tag first and ensure the new version follows semver")),
     control("pr-checkpoint", cmd("gh pr create"),
         msg("PR creation requires manual approval")),
+    control("pr-edit-checkpoint", cmd("gh pr edit"),
+        msg("Reference any docs edited or created in this PR")),
     control("branch-checkpoint", cmd("git checkout -b"),
         msg("Check main for unpushed commits and push them first. After creating the branch, push it and open a draft PR with a minimal description.")),
 ];
@@ -79,3 +83,7 @@ static immutable allScopes = [
     Scope("", "ask", checkpoints),
     Scope("/QNTX", "allow", qntx),
 ];
+
+// QNTX node db — attestations are written here on every control match.
+// If unavailable, graunde still functions (matching, gating, amending) — just no attestations.
+enum DB_PATH = "/Users/s.b.vanhouten/SBVH/teranos/tmp3/QNTX/.qntx/tmp32.db\0";
