@@ -54,15 +54,17 @@ struct Scope {
 static immutable universal = [
     control("no-skip-hooks", cmd("git"), omit("--no-verify"),
         msg("Git hooks must not be bypassed, ever..")),
+    control("stage-checkpoint", cmd("git add"),
+        msg("A commit typically follows. Start thinking about the commit message — focus on why, not what.")),
+    control("pull-checkpoint", cmd("git pull"),
+        msg("Resolve conflicts if present before continuing")),
 ];
 
 static immutable checkpoints = [
-    control("stage-checkpoint", cmd("git add"),
-        msg("A commit typically follows. Start thinking about the commit message — focus on why, not what.")),
     control("commit-checkpoint", cmd("git commit"),
         msg("Commit requires manual approval")),
     control("push-checkpoint", cmd("git push"),
-        msg("Pull first and resolve conflicts before pushing")),
+        msg("If you haven't pulled since the last commit, pull first and resolve conflicts before pushing")),
     control("tag-checkpoint", cmd("git tag"),
         msg("Check the latest tag first and ensure the new version follows semver")),
     control("pr-checkpoint", cmd("gh pr create"),
