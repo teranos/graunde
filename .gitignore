@@ -21,6 +21,9 @@ graunde-test-application
 # Generated
 .version
 
+# Debug captures
+captured_hook_payload.json
+
 # DUB
 .dub
 docs.json
