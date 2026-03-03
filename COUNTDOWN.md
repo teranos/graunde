@@ -25,7 +25,13 @@ Git workflow rituals and attestation-backed state. Graunde evolves from stateles
 
 **Phase 2 — libsqlite3 link. ✓** Linked against libsqlite3 via C interop. Attestations written to QNTX node db on every control match. Subjects: branch name. Predicates: control name. Actor: `graunde`. Source: `graunde v{VERSION}`.
 
-**Phase 3 — Stop controls (#13).** Graunde's read path. PreToolUse writes attestations, Stop reads them back. On Stop, query attestations for the current branch and check controls against the trail. Controls match on attestation state — file types edited, commands run or not run — and surface findings in `additionalContext`. Every match is attested, so a control fires once and stays quiet until conditions change. Higher latency budget than PreToolUse — can query the DB, shell out to verify directly. Example: a clippy control activates after the first push (CI relationship established), matches when .rs files were edited after the last `cargo clippy` run.
+**Phase 3 — ax controls.** Controls that query the attestation trail. Any event can read attestations and match against them — file types edited, commands run or not run. Controls:
+- Clippy control on Stop activates after the first push, matches when .rs files were edited after the last `cargo clippy` run on the current branch.
+- Stale binary correction on Stop.
+- Increase signal to noise ratio.
+- Catch hardcoded URLs in error messages that claim to report runtime values.
+- Reminder to look at a Nix flake when editing CI that touches said flake.
+- Direct ego-death when faced with confident claims about niche/untrained topics — trigger grace and humility as the function of control.
 
 **Phase 4 — QNTX conduit.** Deferred to #2 (`e27dd9e`). CI attestations into graunde's read path.
 
