@@ -1,10 +1,22 @@
 module main;
 
 import matcher;
+import controls : HookEvent;
 import sqlite : writeAttestation;
 import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fprintf, fwrite;
 import core.stdc.stdlib : exit;
 import core.sys.posix.unistd : isatty;
+
+// Parse hook_event_name string to HookEvent. CTFE-unrolled.
+bool parseHookEvent(const(char)[] name, ref HookEvent event) {
+    static foreach (member; __traits(allMembers, HookEvent)) {
+        if (name == member) {
+            event = __traits(getMember, HookEvent, member);
+            return true;
+        }
+    }
+    return false;
+}
 
 // Reads all of stdin into a static buffer.
 // Returns the filled slice, or null on failure/empty.
@@ -182,7 +194,10 @@ extern (C) int main() {
     auto eventName = extractHookEventName(input);
     if (eventName is null) return 0;
 
-    if (eventName == "PreToolUse") {
+    HookEvent event;
+    if (!parseHookEvent(eventName, event)) return 0;
+
+    if (event == HookEvent.PreToolUse) {
         auto toolName = extractToolName(input);
         auto toolUseId = extractToolUseId(input);
         if (toolUseId is null) toolUseId = "unknown";
@@ -239,8 +254,8 @@ extern (C) int main() {
     }
 
     // Lifecycle events — attest and pass through
-    if (eventName == "PostToolUse" || eventName == "PreCompact"
-        || eventName == "Stop" || eventName == "SessionStart") {
+    if (event == HookEvent.PostToolUse || event == HookEvent.PreCompact
+        || event == HookEvent.Stop || event == HookEvent.SessionStart) {
         auto toolUseId = extractToolUseId(input);
         auto id = toolUseId !is null ? toolUseId : buildEventId(eventName);
         auto detail = extractCommand(input);
