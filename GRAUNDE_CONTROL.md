@@ -10,7 +10,7 @@ The only enforcement that works is at the tool level — a PreToolUse hook that 
 
 ## How it works
 
-Runs as a Claude Code `PreToolUse` hook on `Bash`. Reads JSON from stdin, extracts the command, checks it against controls compiled into the binary. Two actions:
+Runs as a Claude Code `PreToolUse` hook on all tools. Reads JSON from stdin, branches on `tool_name`. Bash commands are checked against controls compiled into the binary. Edit/Write operations are matched on file extension. Two actions for command controls:
 
 - **arg** — add missing arguments after the matched command
 - **omit** — strip unwanted flags from the command
@@ -29,10 +29,10 @@ D with `-betterC`. Compiled with LDC. Chosen for:
 
 ## Controls
 
-Controls are defined in `source/controls.d`. A control has:
+Controls are defined in `source/controls.d`. A control matches either a command or a file extension. A control has:
 - `name` — identifier slug
-- `cmd` — command prefix to match (must be at start of segment, followed by space or end)
-- `arg` — arguments to insert after the matched command, OR
+- `cmd` — command prefix to match (Bash), OR `ext` — file extension to match (Edit/Write)
+- `arg` — arguments to insert after the matched command
 - `omit` — flag to strip from the command
 - `msg` — context message sent to Claude via `additionalContext`
 
@@ -60,7 +60,7 @@ static immutable checkpoints = [
     control("pr-edit-checkpoint", cmd("gh pr edit"),
         msg("Reference any docs edited or created in this PR")),
     control("branch-checkpoint", cmd("git checkout -b"),
-        msg("Check main for unpushed commits and push them first. After creating the branch, push it and open a draft PR with a minimal description.")),
+        msg("Check main for unpushed commits and push them first. Update documentation to describe intended behavior. Ask critical design questions. Then open a PR.")),
     control("merge-checkpoint", cmd("gh pr merge"),
         msg("After merge, checkout main and pull to sync local.")),
 ];
@@ -81,16 +81,26 @@ Commands are split on `|`, `;`, `&&` — each segment is checked independently.
 
 ## Hook protocol
 
-**Input** (JSON on stdin):
+**Input** (JSON on stdin). Every tool gets `tool_name`, `tool_input`, `cwd`, `session_id`, `tool_use_id`:
 ```json
 {
-  "tool_input": {
-    "command": "go test ./..."
-  }
+  "tool_name": "Bash",
+  "tool_input": { "command": "go test ./..." },
+  "cwd": "/path/to/project",
+  "session_id": "abc-123",
+  "tool_use_id": "toolu_01ABC"
 }
 ```
 
-**Output** (amendment):
+Edit/Write payloads have `file_path` instead of `command`:
+```json
+{
+  "tool_name": "Edit",
+  "tool_input": { "file_path": "/path/to/file.rs", "old_string": "...", "new_string": "..." }
+}
+```
+
+**Output** (command amendment):
 ```json
 {
   "hookSpecificOutput": {
@@ -100,6 +110,17 @@ Commands are split on `|`, `;`, `&&` — each segment is checked independently.
       "command": "go test -tags \"rustsqlite,qntxwasm\" -short ./..."
     },
     "additionalContext": "Build tags and -short are required for go test in QNTX"
+  }
+}
+```
+
+**Output** (file observation — context only, no updatedInput):
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow",
+    "additionalContext": "Rust files modified — consider running cargo clippy before pushing"
   }
 }
 ```
@@ -121,7 +142,7 @@ In `~/.claude/settings.json`:
 "hooks": {
   "PreToolUse": [
     {
-      "matcher": "Bash",
+      "matcher": "",
       "hooks": [
         {
           "type": "command",

@@ -72,7 +72,7 @@ static immutable checkpoints = [
     control("pr-edit-checkpoint", cmd("gh pr edit"),
         msg("Reference any docs edited or created in this PR")),
     control("branch-checkpoint", cmd("git checkout -b"),
-        msg("Check main for unpushed commits and push them first. After creating the branch, push it and open a draft PR with a minimal description.")),
+        msg("Check main for unpushed commits and push them first. Update documentation to describe intended behavior. Ask critical design questions. Then open a PR.")),
     control("merge-checkpoint", cmd("gh pr merge"),
         msg("After merge, checkout main and pull to sync local.")),
 ];
