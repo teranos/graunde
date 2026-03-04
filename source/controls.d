@@ -1,8 +1,8 @@
 module controls;
 
 enum HookEvent {
-    SessionStart,       // TODO(#5)
-    UserPromptSubmit,   // TODO(#6)
+    SessionStart,       // #5: arch context
+    UserPromptSubmit,   // #6: keyword reminders
     PreToolUse,
     PermissionRequest,  // TODO(#7)
     PostToolUse,        // TODO(#8): attested, no controls yet
@@ -140,9 +140,15 @@ static immutable qntxFiles = [
         msg("BANNED in frontend: alert(), confirm(), prompt(), toast(). Button component has built-in error handling (throw from onClick). Check component APIs before implementing.")),
 ];
 
+static immutable graunde = [
+    control("install-after-test", cmd("dub test"),
+        msg("If tests pass, run make install to update the live hook binary.")),
+];
+
 static immutable allScopes = [
     Scope("", "allow", universal),
     Scope("", "ask", checkpoints),
+    Scope("/graunde", "allow", graunde),
     Scope("/QNTX", "allow", qntx),
 ];
 

@@ -1,6 +1,6 @@
 module userprompt;
 
-import main : extractJsonString, extractSessionId, buildEventId;
+import parse : extractJsonString, buildEventId;
 import matcher : contains;
 import sqlite : ZBuf, openDb, attestationExists, writeAttestationTo, sqlite3_close;
 import core.stdc.stdio : stdout, fputs, fwrite;
@@ -12,6 +12,8 @@ const(char)[] extractPrompt(const(char)[] json) {
 
 enum GRAUNDE = `Graunde — a hook that fires on every hook event, tracks what happened in this session. Can rewrite PreToolUse hooks on the fly, nudges Claude Code into the right direction; https://github.com/teranos/graunde/tree/main`;
 enum AX = `AX — attestation query, a natural-language-like syntax (Tim is tester of QNTX by attestor)`;
+enum QNTX = `QNTX — Continuous Intelligence. Domain-agnostic knowledge system built on verifiable attestations (who said what, when, in what context). Core: Attestation Type System (ATS). Query with AX. Graunde shares its node db; https://github.com/teranos/QNTX`;
+enum TIMER = `You can set a timer on macOS. Run in background: sleep <seconds> && say "time" &`;
 
 int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
     auto prompt = extractPrompt(input);
@@ -20,8 +22,11 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
     bool g = contains(prompt, "graunde") || contains(prompt, "Graunde");
     bool a = contains(prompt, " ax ") || contains(prompt, " AX ")
           || contains(prompt, " Ax ");
+    bool q = (contains(prompt, "qntx") || contains(prompt, "QNTX")
+          || contains(prompt, "Qntx")) && !contains(cwd, "/QNTX");
+    bool t = contains(prompt, "timer for ") || contains(prompt, "Timer for ");
 
-    if (!g && !a) return 0;
+    if (!g && !a && !q && !t) return 0;
 
     // Check if already reminded in this session
     auto db = openDb();
@@ -30,9 +35,13 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
             g = false;
         if (a && attestationExists(db, "ax-reminder", sessionId))
             a = false;
+        if (q && attestationExists(db, "qntx-reminder", sessionId))
+            q = false;
+        if (t && attestationExists(db, "timer-reminder", sessionId))
+            t = false;
     }
 
-    if (!g && !a) {
+    if (!g && !a && !q && !t) {
         if (db !is null) sqlite3_close(db);
         return 0;
     }
@@ -41,8 +50,12 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
     __gshared ZBuf ctx;
     ctx.reset();
     if (g) ctx.put(GRAUNDE);
-    if (g && a) ctx.put(" | ");
+    if (g && (a || q || t)) ctx.put(" | ");
     if (a) ctx.put(AX);
+    if (a && (q || t)) ctx.put(" | ");
+    if (q) ctx.put(QNTX);
+    if (q && t) ctx.put(" | ");
+    if (t) ctx.put(TIMER);
 
     fputs(`{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"`, stdout);
     fwrite(&ctx.data[0], 1, ctx.len, stdout);
@@ -57,6 +70,12 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
         if (a)
             writeAttestationTo(db, "ax-reminder", cwd, sessionId,
                 buildEventId("ax-reminder"), "ax-reminder");
+        if (q)
+            writeAttestationTo(db, "qntx-reminder", cwd, sessionId,
+                buildEventId("qntx-reminder"), "qntx-reminder");
+        if (t)
+            writeAttestationTo(db, "timer-reminder", cwd, sessionId,
+                buildEventId("timer-reminder"), "timer-reminder");
         sqlite3_close(db);
     }
 

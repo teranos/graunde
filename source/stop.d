@@ -1,7 +1,7 @@
 module stop;
 
-import main : extractBool, extractCommand, extractFilePath,
-              extractToolUseId, buildEventId, writeJsonString;
+import parse : extractBool, extractCommand, extractFilePath,
+               extractToolUseId, buildEventId, writeJsonString;
 import sqlite : writeAttestation, writeAttestationTo, openDb, loadAxExtension,
                 getBranch, sqlite3, sqlite3_close;
 import core.stdc.stdio : stdout, fputs;
