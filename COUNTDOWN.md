@@ -25,7 +25,7 @@ Git workflow rituals and attestation-backed state. Graunde evolves from stateles
 
 **Phase 2 — libsqlite3 link. ✓** Linked against libsqlite3 via C interop. Attestations written to QNTX node db on every control match. Subjects: branch name. Predicates: control name. Actor: `graunde`. Source: `graunde v{VERSION}`.
 
-**Phase 3 — ax controls. ✓** Controls that query the attestation trail via the QNTX ax extension. On Stop, graunde loads the extension, queries attestations for the current branch, and matches against them. Build: 4.0s with sqlite link, 3.6s without — linking adds ~0.4s, compilation is the bottleneck. Future controls:
+**Phase 3 — ax controls. ✓** Controls that query the attestation trail via the QNTX ax extension. On Stop, graunde loads the extension, queries attestations for the current branch, and matches against them. Deferred message queue delivers attestation-backed messages on Stop without blocking — CI nudge fires after `git push` with configurable delay (#33). PostToolUse captures full tool response (stdout, stderr, filePath, success). PreToolUse amends `run_in_background` and `timeout`. Msg-only controls emit their `allow`/`ask` decision on every fire, message only on first. `hasSegment` matches commands in compound chains for PostToolUse. Future controls:
 - [x] Clippy control on Stop activates after the first push, matches when .rs files were edited after the last `cargo clippy` run on the current branch.
 - [ ] Stale binary correction on Stop.
 - [ ] Increase signal to noise ratio.
@@ -35,6 +35,7 @@ Git workflow rituals and attestation-backed state. Graunde evolves from stateles
 - [ ] Catch entity IDs used as subjects — IDs belong in attributes, not subjects.
 - [x] Machine context on SessionStart — compile-time arch detection. Claude already receives Platform and OS Version from the environment.
 - [ ] Direct ego-death when faced with confident claims about niche/untrained topics — trigger grace and humility as the function of control.
+- [ ] Adaptive CI nudge delay (#33) — average of longest recent CI durations plus proportional buffer (d/22 + d/33 + d/44, capped at 2 minutes).
 
 **Phase 4 — QNTX conduit.** Deferred to #2 (`e27dd9e`). CI attestations into graunde's read path.
 
