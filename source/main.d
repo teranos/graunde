@@ -1,6 +1,6 @@
 module main;
 
-import matcher;
+import matcher : checkCommand, applyArg, applyOmit, checkFilePath, FileMatch, indexOf, contains, Buf;
 import controls : HookEvent;
 import sqlite : writeAttestation;
 import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fprintf, fwrite;
@@ -156,6 +156,16 @@ void writeJsonString(const(char)[] s) {
     }
 }
 
+// Context-only response for non-Bash tools (no updatedInput).
+void writeContextResponse(const(char)[] context, const(char)[] decision) {
+    fputs(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"`, stdout);
+    fputs2(decision);
+    fputs(`","additionalContext":"`, stdout);
+    writeJsonString(context);
+    fputs(`"}}`, stdout);
+    fputs("\n", stdout);
+}
+
 void writeResponse(const(char)[] command, const(char)[] context, const(char)[] decision) {
     fputs(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"`, stdout);
     fputs2(decision);
@@ -258,14 +268,29 @@ extern (C) int main() {
             return 0;
         }
 
-        // Non-Bash tool (Edit/Write/Read/etc.) — attest with file_path if available
+        // Non-Bash tool (Edit/Write/Read/etc.) — check file-path controls, then attest
         auto filePath = extractFilePath(input);
         writeAttestation(
             toolName !is null ? toolName : "unknown",
             cwd, sessionId, toolUseId,
             filePath !is null ? filePath : ""
         );
+
+        if (filePath !is null) {
+            auto fileResult = checkFilePath(filePath, cwd);
+            if (fileResult.matched) {
+                writeAttestation(fileResult.name, cwd, sessionId, toolUseId, filePath);
+                writeContextResponse(fileResult.msg, fileResult.decision);
+                return 0;
+            }
+        }
         return 0;
+    }
+
+    // UserPromptSubmit — keyword controls
+    if (event == HookEvent.UserPromptSubmit) {
+        import userprompt : handleUserPromptSubmit;
+        return handleUserPromptSubmit(input, cwd, sessionId);
     }
 
     // Stop — attest and check ax controls
@@ -274,9 +299,16 @@ extern (C) int main() {
         return handleStop(input, cwd, sessionId);
     }
 
+    // SessionStart — attest and emit arch context
+    if (event == HookEvent.SessionStart) {
+        auto id = buildEventId(eventName);
+        writeAttestation(eventName, cwd, sessionId, id, eventName);
+        import sessionstart : handleSessionStart;
+        return handleSessionStart();
+    }
+
     // Lifecycle events — attest and pass through
-    if (event == HookEvent.PostToolUse || event == HookEvent.PreCompact
-        || event == HookEvent.SessionStart) {
+    if (event == HookEvent.PostToolUse || event == HookEvent.PreCompact) {
         auto toolUseId = extractToolUseId(input);
         auto id = toolUseId !is null ? toolUseId : buildEventId(eventName);
         auto detail = extractCommand(input);

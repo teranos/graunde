@@ -7,7 +7,7 @@ import sqlite : writeAttestation, writeAttestationTo, openDb, loadAxExtension,
 import core.stdc.stdio : stdout, fputs;
 
 void writeStopResponse(const(char)[] reason) {
-    fputs(`{"decision":"block","reason":"`, stdout);
+    fputs(`{"continue":true,"systemMessage":"`, stdout);
     writeJsonString(reason);
     fputs(`"}`, stdout);
     fputs("\n", stdout);
@@ -37,6 +37,8 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         auto branch = getBranch(cwd);
         auto axResult = checkAxControls(branch, db);
         if (axResult.control !is null) {
+            writeAttestationTo(db, axResult.control.name, cwd, sessionId,
+                buildEventId(axResult.control.name), axResult.control.name);
             sqlite3_close(db);
             writeStopResponse(axResult.reason);
             return 0;

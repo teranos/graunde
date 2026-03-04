@@ -174,6 +174,51 @@ Buf applyOmit(const(Control)* c, const(char)[] segment) {
     return buf;
 }
 
+struct FileMatch {
+    bool matched;
+    const(char)[] decision;
+    // Combined message from all matching controls, built in static buffer
+    const(char)[] msg;
+    // Name of first matching control (for attestation)
+    const(char)[] name;
+}
+
+// Scans file-path controls. Composes all matching controls — concatenates messages,
+// most restrictive decision wins.
+FileMatch checkFilePath(const(char)[] filePath, const(char)[] cwd) {
+    import controls : fileScopes;
+
+    __gshared Buf msgBuf;
+    msgBuf = Buf.init;
+
+    const(char)[] decision;
+    const(char)[] firstName;
+
+    foreach (ref sc; fileScopes) {
+        if (sc.path.length > 0 && !contains(cwd, sc.path))
+            continue;
+        foreach (ref c; sc.controls) {
+            if (c.filepath.value.length > 0 && contains(filePath, c.filepath.value)) {
+                if (firstName.length == 0)
+                    firstName = c.name;
+
+                if (msgBuf.len > 0)
+                    msgBuf.put(" ");
+                msgBuf.put(c.msg.value);
+
+                if (sc.decision == "ask")
+                    decision = "ask";
+                else if (decision.length == 0)
+                    decision = sc.decision;
+            }
+        }
+    }
+
+    if (msgBuf.len > 0)
+        return FileMatch(true, decision, msgBuf.slice(), firstName);
+    return FileMatch(false, "", "", "");
+}
+
 // --- Major Tom's test suite ---
 
 enum QNTX = "/Users/dev/QNTX";

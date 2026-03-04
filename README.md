@@ -63,6 +63,21 @@ static immutable allScopes = [
 
 Commands are split on `|`, `;`, `&&` — each segment is checked independently.
 
+File-path controls match on the `file_path` field of non-Bash tools (Edit, Write, Read). Multiple file-path controls can match the same file — messages compose.
+
+```d
+static immutable qntxFiles = [
+    control("web-docs-reminder", filepath("/web/"),
+        msg("Read web/CLAUDE.md before editing frontend files.")),
+    control("web-ts-banned", filepath("/web/ts/"),
+        msg("BANNED in frontend: alert(), confirm(), prompt(), toast().")),
+];
+
+static immutable fileScopes = [
+    Scope("/QNTX", "allow", qntxFiles),
+];
+```
+
 ## Ax controls
 
 Ax controls query the attestation trail on triggered events. They load the QNTX ax extension into the linked SQLite handle, run a filter query scoped to the current branch, and apply matching logic in D.
@@ -98,7 +113,8 @@ In `~/.claude/settings.json`, register graunde for all hook events:
   "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "graunde" }] }],
   "PreCompact": [{ "hooks": [{ "type": "command", "command": "graunde" }] }],
   "Stop": [{ "hooks": [{ "type": "command", "command": "graunde" }] }],
-  "SessionStart": [{ "hooks": [{ "type": "command", "command": "graunde" }] }]
+  "SessionStart": [{ "hooks": [{ "type": "command", "command": "graunde" }] }],
+  "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "graunde" }] }]
 }
 ```
 

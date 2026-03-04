@@ -41,6 +41,10 @@ struct Ax {
     string value;
 }
 
+struct FilePath {
+    string value;
+}
+
 struct Msg {
     string value;
 }
@@ -50,6 +54,7 @@ Arg arg(string s) { return Arg(s); }
 Omit omit(string s) { return Omit(s); }
 Trigger stop() { return Trigger("Stop"); }
 Ax ax(string s) { return Ax(s); }
+FilePath filepath(string s) { return FilePath(s); }
 Msg msg(string s) { return Msg(s); }
 
 struct Control {
@@ -59,27 +64,33 @@ struct Control {
     Omit omit;
     Trigger trigger;
     Ax ax;
+    FilePath filepath;
     Msg msg;
 }
 
 // Arg amendment control
 Control control(string name, Cmd c, Arg a, Msg m) {
-    return Control(name, c, a, Omit(""), Trigger(""), Ax(""), m);
+    return Control(name, c, a, Omit(""), Trigger(""), Ax(""), FilePath(""), m);
 }
 
 // Omit amendment control
 Control control(string name, Cmd c, Omit o, Msg m) {
-    return Control(name, c, Arg(""), o, Trigger(""), Ax(""), m);
+    return Control(name, c, Arg(""), o, Trigger(""), Ax(""), FilePath(""), m);
 }
 
 // Msg-only control — matches but doesn't amend.
 Control control(string name, Cmd c, Msg m) {
-    return Control(name, c, Arg(""), Omit(""), Trigger(""), Ax(""), m);
+    return Control(name, c, Arg(""), Omit(""), Trigger(""), Ax(""), FilePath(""), m);
 }
 
 // Ax control — queries attestation trail on a triggered event.
 Control control(string name, Trigger t, Ax a, Msg m) {
-    return Control(name, Cmd(""), Arg(""), Omit(""), t, a, m);
+    return Control(name, Cmd(""), Arg(""), Omit(""), t, a, FilePath(""), m);
+}
+
+// File-path control — matches when file_path contains the pattern.
+Control control(string name, FilePath fp, Msg m) {
+    return Control(name, Cmd(""), Arg(""), Omit(""), Trigger(""), Ax(""), fp, m);
 }
 
 // Groups controls by scope and decision.
@@ -122,10 +133,21 @@ static immutable qntx = [
         msg("Build tags and -short are required for go test in QNTX")),
 ];
 
+static immutable qntxFiles = [
+    control("web-docs-reminder", filepath("/web/"),
+        msg("Read web/CLAUDE.md before editing frontend files.")),
+    control("web-ts-banned", filepath("/web/ts/"),
+        msg("BANNED in frontend: alert(), confirm(), prompt(), toast(). Button component has built-in error handling (throw from onClick). Check component APIs before implementing.")),
+];
+
 static immutable allScopes = [
     Scope("", "allow", universal),
     Scope("", "ask", checkpoints),
     Scope("/QNTX", "allow", qntx),
+];
+
+static immutable fileScopes = [
+    Scope("/QNTX", "allow", qntxFiles),
 ];
 
 // QNTX node db — attestations are written here on every control match.

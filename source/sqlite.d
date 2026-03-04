@@ -83,6 +83,33 @@ sqlite3* openDb() {
     return db;
 }
 
+// Check if an attestation with a given predicate exists for a session.
+bool attestationExists(sqlite3* db, const(char)[] predicate, const(char)[] sessionId) {
+    __gshared ZBuf ctx;
+    ctx.reset();
+    ctx.put("%session:");
+    ctx.put(sessionId);
+    ctx.put("%");
+
+    enum sql = "SELECT 1 FROM attestations WHERE predicates LIKE ?1 AND contexts LIKE ?2 LIMIT 1\0";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
+        return false;
+
+    __gshared ZBuf pred;
+    pred.reset();
+    pred.put("%");
+    pred.put(predicate);
+    pred.put("%");
+
+    sqlite3_bind_text(stmt, 1, pred.ptr(), cast(int) pred.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
+
+    bool found = sqlite3_step(stmt) == SQLITE_ROW;
+    sqlite3_finalize(stmt);
+    return found;
+}
+
 bool loadAxExtension(sqlite3* db) {
     if (sqlite3_enable_load_extension(db, 1) != SQLITE_OK)
         return false;

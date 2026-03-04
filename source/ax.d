@@ -48,6 +48,7 @@ AxMatch checkAxControls(const(char)[] branch, sqlite3* db) {
 bool clippyMatch(const(char)[] json) {
     long latestClippy = -1;
     long latestRs = -1;
+    long latestReminder = -1;
 
     size_t start = 0;
     while (start < json.length) {
@@ -67,6 +68,8 @@ bool clippyMatch(const(char)[] json) {
                 latestClippy = ts;
             if (contains(entry, `.rs"`) && ts > latestRs)
                 latestRs = ts;
+            if (contains(entry, "clippy-reminder") && ts > latestReminder)
+                latestReminder = ts;
         }
 
         if (sepIdx < 0) break;
@@ -74,6 +77,7 @@ bool clippyMatch(const(char)[] json) {
     }
 
     if (latestRs < 0) return false;
+    if (latestReminder >= 0 && latestReminder > latestRs) return false; // already reminded
     if (latestClippy < 0) return true; // .rs edits but never ran clippy
     return latestRs > latestClippy;
 }

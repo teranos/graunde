@@ -26,12 +26,15 @@ Git workflow rituals and attestation-backed state. Graunde evolves from stateles
 **Phase 2 — libsqlite3 link. ✓** Linked against libsqlite3 via C interop. Attestations written to QNTX node db on every control match. Subjects: branch name. Predicates: control name. Actor: `graunde`. Source: `graunde v{VERSION}`.
 
 **Phase 3 — ax controls. ✓** Controls that query the attestation trail via the QNTX ax extension. On Stop, graunde loads the extension, queries attestations for the current branch, and matches against them. Future controls:
-- Clippy control on Stop activates after the first push, matches when .rs files were edited after the last `cargo clippy` run on the current branch.
-- Stale binary correction on Stop.
-- Increase signal to noise ratio.
-- Catch hardcoded URLs in error messages that claim to report runtime values.
-- Reminder to look at a Nix flake when editing CI that touches said flake.
-- Direct ego-death when faced with confident claims about niche/untrained topics — trigger grace and humility as the function of control.
+- [x] Clippy control on Stop activates after the first push, matches when .rs files were edited after the last `cargo clippy` run on the current branch.
+- [ ] Stale binary correction on Stop.
+- [ ] Increase signal to noise ratio.
+- [ ] Catch hardcoded URLs in error messages that claim to report runtime values.
+- [ ] Reminder to look at a Nix flake when editing CI that touches said flake.
+- [ ] Version bump awareness — per-package in monorepos, needs to know which packages were touched and their tagging convention.
+- [ ] Catch entity IDs used as subjects — IDs belong in attributes, not subjects.
+- [x] Machine context on SessionStart — compile-time arch detection. Claude already receives Platform and OS Version from the environment.
+- [ ] Direct ego-death when faced with confident claims about niche/untrained topics — trigger grace and humility as the function of control.
 
 **Phase 4 — QNTX conduit.** Deferred to #2 (`e27dd9e`). CI attestations into graunde's read path.
 
