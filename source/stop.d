@@ -61,7 +61,7 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
             writeAttestationTo(db, "lazy-verify", cwd, sessionId,
                 buildEventId("lazy-verify"), "lazy-verify");
             sqlite3_close(db);
-            writeStopResponse("Do not ask the user to verify what you can verify yourself. Run tests, check output, confirm behavior. Only flag things that genuinely require human judgment or manual interaction.");
+            writeStopResponse("Do not ask the user to verify what you can verify yourself. Use your tools to verify as much as possible first. Only flag things that genuinely require human judgment or manual interaction.");
             return 0;
         }
     }
