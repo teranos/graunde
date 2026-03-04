@@ -13,3 +13,5 @@ jobs:
           fetch-depth: 0
       - uses: dlang-community/setup-dlang@v2
       - run: dub test
+      - name: Synthetic delay
+        run: sleep $((30 + RANDOM % 20))

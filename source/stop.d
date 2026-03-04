@@ -1,7 +1,8 @@
 module stop;
 
 import parse : extractBool, extractCommand, extractFilePath,
-               extractToolUseId, buildEventId, writeJsonString;
+               extractToolUseId, extractLastAssistantMessage,
+               buildEventId, writeJsonString;
 import sqlite : writeAttestation, writeAttestationTo, openDb, loadAxExtension,
                 getBranch, sqlite3, sqlite3_close;
 import core.stdc.stdio : stdout, fputs;
@@ -48,6 +49,19 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                 buildEventId(axResult.control.name), axResult.control.name);
             sqlite3_close(db);
             writeStopResponse(axResult.reason);
+            return 0;
+        }
+    }
+
+    // Check for lazy verification deferral
+    {
+        import matcher : contains;
+        auto lastMsg = extractLastAssistantMessage(input);
+        if (lastMsg !is null && contains(lastMsg, "Ready for you to verify")) {
+            writeAttestationTo(db, "lazy-verify", cwd, sessionId,
+                buildEventId("lazy-verify"), "lazy-verify");
+            sqlite3_close(db);
+            writeStopResponse("Do not ask the user to verify what you can verify yourself. Run tests, check output, confirm behavior. Only flag things that genuinely require human judgment or manual interaction.");
             return 0;
         }
     }

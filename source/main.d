@@ -275,11 +275,19 @@ extern (C) int main() {
 
         // After git push in graunde — defer CI check
         if (detail !is null && hasSegment(detail, "git push") && contains(cwd, "/graunde")) {
-            import sqlite : openDb, writeDeferredMessage, sqlite3_close;
+            import sqlite : openDb, writeDeferredMessage, getBranch, getCIAvgDuration, computeDelay, sqlite3_close, ZBuf;
             auto db = openDb();
             if (db !is null) {
-                writeDeferredMessage(db, "ci-check", cwd, sessionId,
-                    "Check CI: gh run list --branch $(git branch --show-current) --limit 1", 22);
+                auto branch = getBranch(cwd);
+                if (branch !is null) {
+                    auto delay = computeDelay(getCIAvgDuration(branch));
+                    __gshared ZBuf msgBuf;
+                    msgBuf.reset();
+                    msgBuf.put("Check CI: gh run list --branch ");
+                    msgBuf.put(branch);
+                    msgBuf.put(" --limit 1");
+                    writeDeferredMessage(db, "ci-check", cwd, sessionId, msgBuf.slice(), delay);
+                }
                 sqlite3_close(db);
             }
         }
