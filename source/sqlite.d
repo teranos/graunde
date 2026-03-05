@@ -283,33 +283,6 @@ void jsonAttributes(ref ZBuf buf, const(char)[] event, const(char)[] detail) {
     buf.put(`"}`);
 }
 
-// Builds {"event":"...","detail":"...","response":"..."} — for PostToolUse
-void jsonAttributes(ref ZBuf buf, const(char)[] event, const(char)[] detail, const(char)[] response) {
-    buf.reset();
-    buf.put(`{"event":"`);
-    buf.put(event);
-    buf.put(`","detail":"`);
-    size_t written = 0;
-    foreach (c; detail) {
-        if (written >= 200) break;
-        if (c == '"') buf.put(`\"`);
-        else if (c == '\\') buf.put(`\\`);
-        else if (c == '\n') buf.put(`\n`);
-        else buf.putChar(c);
-        written++;
-    }
-    buf.put(`","response":"`);
-    written = 0;
-    foreach (c; response) {
-        if (written >= 200) break;
-        if (c == '"') buf.put(`\"`);
-        else if (c == '\\') buf.put(`\\`);
-        else if (c == '\n') buf.put(`\n`);
-        else buf.putChar(c);
-        written++;
-    }
-    buf.put(`"}`);
-}
 
 // --- VERSION import ---
 
@@ -321,6 +294,64 @@ const(char)[] versionString() {
     while (end > 0 && (VERSION[end - 1] == '\n' || VERSION[end - 1] == '\r'))
         end--;
     return VERSION[0 .. end];
+}
+
+// --- Universal event attestation ---
+// Stores the full hook payload as attributes — no field extraction, no truncation.
+
+void attestEvent(
+    sqlite3* db,
+    const(char)[] eventName,
+    const(char)[] cwd,
+    const(char)[] sessionId,
+    const(char)[] payload
+) {
+    auto branch = getBranch(cwd);
+    auto ts = formatTimestamp();
+
+    __gshared ZBuf subjects;
+    __gshared ZBuf predicates;
+    __gshared ZBuf contexts;
+    __gshared ZBuf actors;
+    __gshared ZBuf source;
+    __gshared ZBuf idBuf;
+
+    jsonArray1(subjects, branch);
+    jsonArray1(predicates, eventName);
+
+    contexts.reset();
+    contexts.put(`["session:`);
+    contexts.put(sessionId);
+    contexts.put(`"]`);
+
+    jsonArray1(actors, "graunde");
+
+    source.reset();
+    source.put("graunde ");
+    source.put(versionString());
+
+    idBuf.reset();
+    idBuf.put("graunde:payload:");
+    idBuf.put(eventName);
+    idBuf.put(":");
+    idBuf.put(ts);
+
+    enum sql = "INSERT OR IGNORE INTO attestations (id, subjects, predicates, contexts, actors, timestamp, source, attributes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)\0";
+
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
+        return;
+    sqlite3_bind_text(stmt, 1, idBuf.ptr(), cast(int) idBuf.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, subjects.ptr(), cast(int) subjects.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, predicates.ptr(), cast(int) predicates.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, contexts.ptr(), cast(int) contexts.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, actors.ptr(), cast(int) actors.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, ts.ptr, cast(int) ts.length, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 7, source.ptr(), cast(int) source.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 8, payload.ptr, cast(int) payload.length, SQLITE_TRANSIENT);
+
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
 }
 
 // --- Main attestation writer ---
@@ -397,67 +428,6 @@ void writeAttestation(
     sqlite3_close(db);
 }
 
-void writeAttestationWithResponse(
-    const(char)[] predicate,
-    const(char)[] cwd,
-    const(char)[] sessionId,
-    const(char)[] toolUseId,
-    const(char)[] command,
-    const(char)[] response
-) {
-    auto db = openDb();
-    if (db is null) return;
-
-    auto branch = getBranch(cwd);
-    auto ts = formatTimestamp();
-
-    __gshared ZBuf subjects;
-    __gshared ZBuf predicates;
-    __gshared ZBuf contexts;
-    __gshared ZBuf actors;
-    __gshared ZBuf source;
-    __gshared ZBuf attribs;
-    __gshared ZBuf idBuf;
-
-    jsonArray1(subjects, branch);
-    jsonArray1(predicates, predicate);
-
-    contexts.reset();
-    contexts.put(`["session:`);
-    contexts.put(sessionId);
-    contexts.put(`"]`);
-
-    jsonArray1(actors, "graunde");
-
-    source.reset();
-    source.put("graunde ");
-    source.put(versionString());
-
-    jsonAttributes(attribs, predicate, command, response);
-
-    idBuf.reset();
-    idBuf.put(toolUseId);
-
-    enum sql = "INSERT OR IGNORE INTO attestations (id, subjects, predicates, contexts, actors, timestamp, source, attributes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)\0";
-
-    sqlite3_stmt* stmt;
-    if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK) {
-        sqlite3_close(db);
-        return;
-    }
-    sqlite3_bind_text(stmt, 1, idBuf.ptr(), cast(int) idBuf.len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, subjects.ptr(), cast(int) subjects.len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, predicates.ptr(), cast(int) predicates.len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 4, contexts.ptr(), cast(int) contexts.len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 5, actors.ptr(), cast(int) actors.len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 6, ts.ptr, cast(int) ts.length, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 7, source.ptr(), cast(int) source.len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 8, attribs.ptr(), cast(int) attribs.len, SQLITE_TRANSIENT);
-
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    sqlite3_close(db);
-}
 
 // --- Deferred message queue ---
 

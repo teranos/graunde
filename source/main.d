@@ -1,7 +1,7 @@
 module main;
 
 import matcher : checkCommand, applyArg, applyOmit, checkFilePath, FileMatch, indexOf, contains, hasSegment, Buf;
-import parse : extractCommand, extractCwd, extractSessionId, extractToolUseId, extractHookEventName, extractToolName, extractFilePath, extractSource, extractStdout, extractStderr, extractResponseFilePath, extractBool, buildEventId, writeJsonString, fputs2;
+import parse : extractCommand, extractCwd, extractSessionId, extractToolUseId, extractHookEventName, extractToolName, extractFilePath, extractSource, writeJsonString, fputs2;
 import controls : HookEvent;
 import sqlite : writeAttestation;
 import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fprintf, fwrite;
@@ -22,7 +22,7 @@ bool parseHookEvent(const(char)[] name, ref HookEvent event) {
 // Reads all of stdin into a static buffer.
 // Returns the filled slice, or null on failure/empty.
 const(char)[] readStdin() {
-    __gshared char[8192] buf = 0;
+    __gshared char[65536] buf = 0;
     size_t total = 0;
 
     while (total < buf.length) {
@@ -111,6 +111,16 @@ extern (C) int main() {
 
     HookEvent event;
     if (!parseHookEvent(eventName, event)) return 0;
+
+    // Attest every event — full payload, no extraction
+    {
+        import sqlite : openDb, attestEvent, sqlite3_close;
+        auto db = openDb();
+        if (db !is null) {
+            attestEvent(db, eventName, cwd, sessionId, input);
+            sqlite3_close(db);
+        }
+    }
 
     if (event == HookEvent.PreToolUse) {
         auto toolName = extractToolName(input);
@@ -206,72 +216,18 @@ extern (C) int main() {
         return handleStop(input, cwd, sessionId);
     }
 
-    // SessionStart — attest and emit arch context on startup/clear
+    // SessionStart — emit arch context on startup/clear
     if (event == HookEvent.SessionStart) {
         auto source = extractSource(input);
-        auto id = buildEventId(eventName);
-        writeAttestation(eventName, cwd, sessionId, id, source !is null ? source : eventName);
         import sessionstart : handleSessionStart;
         return handleSessionStart(source);
     }
 
-    // PostToolUse — attest with full tool_response, check controls
+    // PostToolUse — check for CI deferral
     if (event == HookEvent.PostToolUse) {
-        auto toolUseId = extractToolUseId(input);
-        auto toolName = extractToolName(input);
-        // Suffix :post to avoid collision with PreToolUse's INSERT OR IGNORE
-        import sqlite : ZBuf;
-        __gshared ZBuf idBuf;
-        idBuf.reset();
-        if (toolUseId !is null) {
-            idBuf.put(toolUseId);
-            idBuf.put(":post");
-        } else {
-            auto fallback = buildEventId(eventName);
-            idBuf.put(fallback);
-        }
-        auto id = idBuf.slice();
         auto detail = extractCommand(input);
         if (detail is null) detail = extractFilePath(input);
         if (detail is null) detail = eventName;
-
-        // Build response from tool_response fields
-        import sqlite : writeAttestationWithResponse, ZBuf;
-        __gshared ZBuf respBuf;
-        respBuf.reset();
-        bool hasResp = false;
-
-        auto sout = extractStdout(input);
-        if (sout !is null && sout.length > 0) {
-            respBuf.put(sout);
-            hasResp = true;
-        }
-
-        auto serr = extractStderr(input);
-        if (serr !is null && serr.length > 0) {
-            if (hasResp) respBuf.put(" | stderr: ");
-            respBuf.put(serr);
-            hasResp = true;
-        }
-
-        auto respPath = extractResponseFilePath(input);
-        if (respPath !is null && respPath.length > 0) {
-            if (hasResp) respBuf.put(" | ");
-            respBuf.put(respPath);
-            hasResp = true;
-        }
-
-        if (extractBool(input, `"success"`)) {
-            if (hasResp) respBuf.put(" | ");
-            respBuf.put("ok");
-            hasResp = true;
-        }
-
-        if (hasResp) {
-            writeAttestationWithResponse(eventName, cwd, sessionId, id, detail, respBuf.slice());
-        } else {
-            writeAttestation(eventName, cwd, sessionId, id, detail);
-        }
 
         // After git push — defer CI check
         if (detail !is null && hasSegment(detail, "git push")) {
@@ -295,16 +251,6 @@ extern (C) int main() {
         return 0;
     }
 
-    // PreCompact — attest and pass through
-    if (event == HookEvent.PreCompact) {
-        auto toolUseId = extractToolUseId(input);
-        auto id = toolUseId !is null ? toolUseId : buildEventId(eventName);
-        auto detail = extractCommand(input);
-        if (detail is null) detail = extractFilePath(input);
-        if (detail is null) detail = eventName;
-        writeAttestation(eventName, cwd, sessionId, id, detail);
-    }
-
-    // Unknown events — exit 0, no output
+    // Unknown/unhandled events — exit 0, no output
     return 0;
 }
