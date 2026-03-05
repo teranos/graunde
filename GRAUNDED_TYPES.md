@@ -2,28 +2,43 @@
 
 Graunde attests type definitions on SessionStart so QNTX knows what to do with the data.
 
-## Types
+- **ID**: `graunde:type:<name>:<version>` — re-attested when graunde updates.
+- **Attributes**: exclusively `rich_string_fields`. No display metadata — that's QNTX's concern.
 
-| Type | Rich string fields | Grounded variant | Verified |
-|------|--------------------|------------------|----------|
-| SessionStart | — | — | no |
-| UserPromptSubmit | `prompt` | GraundedUserPromptSubmit | no |
-| PreToolUse | — | GraundedPreToolUse | no |
-| PermissionRequest | — | — | no |
-| PostToolUse | — | — | no |
-| PostToolUseFailure | — | — | no |
-| Notification | — | — | no |
-| SubagentStart | — | — | no |
-| SubagentStop | — | — | no |
-| Stop | `last_assistant_message` | GraundedStop | no |
-| TeammateIdle | — | — | no |
-| TaskCompleted | — | — | no |
-| ConfigChange | — | — | no |
-| WorktreeCreate | — | — | no |
-| WorktreeRemove | — | — | no |
-| PreCompact | — | — | no |
-| Setup | — | — | no |
-| SessionEnd | — | — | no |
+## Event Types — `<Type> is type of ClaudeCode`
+
+Attributes contain the raw Claude Code hook payload, verbatim.
+
+| Type | Rich string fields | Verified |
+|------|-------------------|----------|
+| SessionStart | — | no |
+| UserPromptSubmit | `prompt` | no |
+| PreToolUse | — | no |
+| PermissionRequest | — | no |
+| PostToolUse | — | no |
+| PostToolUseFailure | — | no |
+| Notification | — | no |
+| SubagentStart | — | no |
+| SubagentStop | — | no |
+| Stop | `last_assistant_message` | no |
+| TeammateIdle | — | no |
+| TaskCompleted | — | no |
+| ConfigChange | — | no |
+| WorktreeCreate | — | no |
+| WorktreeRemove | — | no |
+| PreCompact | — | no |
+| Setup | — | no |
+| SessionEnd | — | no |
+
+## Grounded Types — `<Type> is type of Graunded`
+
+When graunde acts on an event, the predicate becomes `Graunded<Event>`. Attributes extend the payload with graunde's own fields.
+
+| Type | Extra attribute fields | Verified |
+|------|----------------------|----------|
+| GraundedPreToolUse | `control`, `decision` | no |
+| GraundedStop | `control`, `decision` | no |
+| GraundedUserPromptSubmit | `control` | no |
 
 ## Schema
 

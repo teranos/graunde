@@ -356,7 +356,6 @@ void attestEvent(
 
 // --- Main attestation writer ---
 
-// TODO(#2): read CI attestations into graunde's control path
 void writeAttestationTo(
     sqlite3* db,
     const(char)[] predicate,
