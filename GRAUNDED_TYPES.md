@@ -4,6 +4,7 @@ Graunde attests type definitions on SessionStart so QNTX knows what to do with t
 
 - **ID**: `graunde:type:<name>:<version>` — re-attested when graunde updates.
 - **Attributes**: exclusively `rich_string_fields`. No display metadata — that's QNTX's concern.
+- Attested on every SessionStart. `INSERT OR IGNORE` prevents duplicates within the same version.
 
 ## Event Types — `<Type> is type of ClaudeCode`
 

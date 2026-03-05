@@ -10,7 +10,37 @@ else enum ARCH = "unknown";
 
 enum SESSION_CONTEXT = `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"arch: ` ~ ARCH ~ `"}}` ~ "\n";
 
+// TODO: verify every event type's payload fields for rich string eligibility.
+// Only UserPromptSubmit (prompt) and Stop (last_assistant_message) confirmed so far.
+void attestTypes() {
+    import sqlite : openDb, attestType, sqlite3_close;
+    auto db = openDb();
+    if (db is null) return;
+
+    // Event types — <Type> is type of ClaudeCode
+    static foreach (name; [
+        "SessionStart", "PermissionRequest", "PreToolUse",
+        "PostToolUse", "PostToolUseFailure", "Notification",
+        "SubagentStart", "SubagentStop", "TeammateIdle",
+        "TaskCompleted", "ConfigChange", "WorktreeCreate",
+        "WorktreeRemove", "PreCompact", "Setup", "SessionEnd"
+    ])
+        attestType(db, name, "ClaudeCode", `{}`);
+
+    attestType(db, "UserPromptSubmit", "ClaudeCode", `{"rich_string_fields":["prompt"]}`);
+    attestType(db, "Stop", "ClaudeCode", `{"rich_string_fields":["last_assistant_message"]}`);
+
+    // Grounded types — <Type> is type of Graunded
+    attestType(db, "GraundedPreToolUse", "Graunded", `{}`);
+    attestType(db, "GraundedStop", "Graunded", `{}`);
+    attestType(db, "GraundedUserPromptSubmit", "Graunded", `{}`);
+
+    sqlite3_close(db);
+}
+
 int handleSessionStart(const(char)[] source) {
+    attestTypes();
+
     // Arch context on fresh starts only
     if (source is null || contains(source, "startup") || contains(source, "clear")) {
         fputs(SESSION_CONTEXT.ptr, stdout);

@@ -354,6 +354,48 @@ void attestEvent(
     sqlite3_finalize(stmt);
 }
 
+// --- Type attestation ---
+// Attests a type definition so QNTX knows what to do with the data.
+// ID encodes version — re-attested when graunde updates. INSERT OR IGNORE prevents duplicates.
+
+void attestType(sqlite3* db, const(char)[] name, const(char)[] context, const(char)[] attributes) {
+    auto ts = formatTimestamp();
+
+    __gshared ZBuf idBuf;
+    __gshared ZBuf subjects;
+    __gshared ZBuf actors;
+    __gshared ZBuf ctxBuf;
+
+    idBuf.reset();
+    idBuf.put("graunde:type:");
+    idBuf.put(name);
+    idBuf.put(":");
+    idBuf.put(versionString());
+
+    jsonArray1(subjects, name);
+    jsonArray1(actors, name);
+    jsonArray1(ctxBuf, context);
+
+    enum preds = `["type"]` ~ "\0";
+    enum src = "graunde\0";
+    enum sql = "INSERT OR IGNORE INTO attestations (id, subjects, predicates, contexts, actors, timestamp, source, attributes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)\0";
+
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
+        return;
+    sqlite3_bind_text(stmt, 1, idBuf.ptr(), cast(int) idBuf.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, subjects.ptr(), cast(int) subjects.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, preds.ptr, cast(int) preds.length - 1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, ctxBuf.ptr(), cast(int) ctxBuf.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, actors.ptr(), cast(int) actors.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, ts.ptr, cast(int) ts.length, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 7, src.ptr, cast(int) src.length - 1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 8, attributes.ptr, cast(int) attributes.length, SQLITE_TRANSIENT);
+
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+}
+
 // --- Main attestation writer ---
 
 void writeAttestationTo(
