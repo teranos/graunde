@@ -1,9 +1,8 @@
 module stop;
 
-import parse : extractBool, extractCommand, extractFilePath,
-               extractToolUseId, extractLastAssistantMessage,
+import parse : extractBool, extractLastAssistantMessage,
                buildEventId, writeJsonString;
-import sqlite : writeAttestation, writeAttestationTo, openDb, loadAxExtension,
+import sqlite : writeAttestationTo, openDb, loadAxExtension,
                 getBranch, sqlite3, sqlite3_close;
 import core.stdc.stdio : stdout, fputs;
 
@@ -14,31 +13,14 @@ void writeStopResponse(const(char)[] reason) {
     fputs("\n", stdout);
 }
 
-void writeStopBlock(const(char)[] reason) {
-    fputs(`{"decision":"block","reason":"`, stdout);
-    writeJsonString(reason);
-    fputs(`"}`, stdout);
-    fputs("\n", stdout);
-}
-
 int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
     auto hookActive = extractBool(input, `"stop_hook_active"`);
-    auto toolUseId = extractToolUseId(input);
-    auto eventName = cast(const(char)[])"Stop";
-    auto id = toolUseId !is null ? toolUseId : buildEventId(eventName);
-    auto detail = extractCommand(input);
-    if (detail is null) detail = extractFilePath(input);
-    if (detail is null) detail = eventName;
 
-    if (hookActive) {
-        writeAttestation(eventName, cwd, sessionId, id, detail);
+    if (hookActive)
         return 0;
-    }
 
     auto db = openDb();
     if (db is null) return 0;
-
-    writeAttestationTo(db, eventName, cwd, sessionId, id, detail);
 
     if (loadAxExtension(db)) {
         import ax : checkAxControls;
@@ -84,13 +66,13 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                     ciBuf.put("CI: ");
                     ciBuf.put(status);
                     sqlite3_close(db);
-                    writeStopBlock(ciBuf.slice());
+                    writeStopResponse(ciBuf.slice());
                     return 0;
                 }
             }
 
             sqlite3_close(db);
-            writeStopBlock(deferred.message);
+            writeStopResponse(deferred.message);
             return 0;
         }
     }
