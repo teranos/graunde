@@ -72,7 +72,7 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         import matcher : contains;
         auto deferred = readDeferredMessage(db, sessionId);
         if (deferred.message !is null) {
-            markDelivered(db, deferred.name, cwd, sessionId);
+            markDelivered(db, deferred.name, cwd, sessionId, deferred.projectScoped);
 
             // ci-check: query live status instead of emitting static message
             if (contains(deferred.name, "ci-check")) {

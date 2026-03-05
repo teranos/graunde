@@ -462,8 +462,9 @@ void writeAttestationWithResponse(
 // --- Deferred message queue ---
 
 struct DeferredMsg {
-    const(char)[] name;    // e.g. "ci-check"
+    const(char)[] name;    // e.g. "ci-check", "cluster-update"
     const(char)[] message; // the context to deliver
+    bool projectScoped;    // true if from project context (not session)
 }
 
 // Write a deferred message attestation with a deliver-after delay.
@@ -533,25 +534,18 @@ void writeDeferredMessage(
     sqlite3_finalize(stmt);
 }
 
-// Read a pending deferred message for this session that's ready to deliver.
-// Finds the newest deferred message that has no delivered attestation newer than it.
-DeferredMsg readDeferredMessage(sqlite3* db, const(char)[] sessionId) {
+// Scan deferred attestations matching a context pattern, return the first ready-to-deliver message.
+// Checks for existing delivered attestation to avoid re-delivery.
+DeferredMsg scanDeferred(sqlite3* db, const(char)[] ctxPattern) {
     auto now = cast(long) time(null);
 
-    // Find deferred attestations for this session, newest first
     enum sql = "SELECT predicates, attributes, timestamp FROM attestations WHERE predicates LIKE '%deferred:%' AND contexts LIKE ?1 ORDER BY timestamp DESC LIMIT 5\0";
-
-    __gshared ZBuf ctx;
-    ctx.reset();
-    ctx.put("%session:");
-    ctx.put(sessionId);
-    ctx.put("%");
 
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
         return DeferredMsg(null, null);
 
-    sqlite3_bind_text(stmt, 1, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 1, ctxPattern.ptr, cast(int) ctxPattern.length, SQLITE_TRANSIENT);
 
     __gshared char[256] nameBuf = 0;
     __gshared char[512] msgBuf = 0;
@@ -577,7 +571,6 @@ DeferredMsg readDeferredMessage(sqlite3* db, const(char)[] sessionId) {
         auto name = preds[nameStart .. nameEnd];
 
         // Check if a delivered attestation exists that's newer than this deferred
-        // Query: any delivered:<name> with timestamp >= this deferred's timestamp
         if (tsText !is null) {
             size_t tsLen = 0;
             while (tsText[tsLen] != 0) tsLen++;
@@ -591,7 +584,8 @@ DeferredMsg readDeferredMessage(sqlite3* db, const(char)[] sessionId) {
                 delPred.put(name);
                 delPred.put(`%`);
                 sqlite3_bind_text(delStmt, 1, delPred.ptr(), cast(int) delPred.len, SQLITE_TRANSIENT);
-                sqlite3_bind_text(delStmt, 2, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
+                // For delivered check, use project context if available, else session
+                sqlite3_bind_text(delStmt, 2, ctxPattern.ptr, cast(int) ctxPattern.length, SQLITE_TRANSIENT);
                 sqlite3_bind_text(delStmt, 3, tsText, cast(int) tsLen, SQLITE_TRANSIENT);
                 bool delivered = sqlite3_step(delStmt) == SQLITE_ROW;
                 sqlite3_finalize(delStmt);
@@ -636,8 +630,27 @@ DeferredMsg readDeferredMessage(sqlite3* db, const(char)[] sessionId) {
     return DeferredMsg(null, null);
 }
 
+// Read a pending deferred message — checks session-scoped first, then project-scoped.
+DeferredMsg readDeferredMessage(sqlite3* db, const(char)[] sessionId) {
+    // Session-scoped (ci-check, etc.)
+    __gshared ZBuf sessionCtx;
+    sessionCtx.reset();
+    sessionCtx.put("%session:");
+    sessionCtx.put(sessionId);
+    sessionCtx.put("%");
+
+    auto msg = scanDeferred(db, sessionCtx.slice());
+    if (msg.message !is null) return msg;
+
+    // Project-scoped (cluster updates, pulse summaries from QNTX)
+    auto projectMsg = scanDeferred(db, "%project:%");
+    projectMsg.projectScoped = projectMsg.message !is null;
+    return projectMsg;
+}
+
 // Mark a deferred message as delivered.
-void markDelivered(sqlite3* db, const(char)[] name, const(char)[] cwd, const(char)[] sessionId) {
+// Project-scoped messages write with project context so other sessions don't re-deliver.
+void markDelivered(sqlite3* db, const(char)[] name, const(char)[] cwd, const(char)[] sessionId, bool projectScoped) {
     __gshared ZBuf predBuf;
     predBuf.reset();
     predBuf.put("delivered:");
@@ -645,7 +658,66 @@ void markDelivered(sqlite3* db, const(char)[] name, const(char)[] cwd, const(cha
 
     import parse : buildEventId;
     auto evId = buildEventId(predBuf.slice());
-    writeAttestationTo(db, predBuf.slice(), cwd, sessionId, evId, name);
+
+    if (projectScoped) {
+        writeProjectAttestation(db, predBuf.slice(), cwd, evId, name);
+    } else {
+        writeAttestationTo(db, predBuf.slice(), cwd, sessionId, evId, name);
+    }
+}
+
+// Write an attestation with project context instead of session context.
+void writeProjectAttestation(
+    sqlite3* db,
+    const(char)[] predicate,
+    const(char)[] cwd,
+    const(char)[] id,
+    const(char)[] detail
+) {
+    auto branch = getBranch(cwd);
+    auto ts = formatTimestamp();
+
+    __gshared ZBuf subjects;
+    __gshared ZBuf predicates;
+    __gshared ZBuf contexts;
+    __gshared ZBuf actors;
+    __gshared ZBuf source;
+    __gshared ZBuf attributes;
+    __gshared ZBuf idBuf;
+
+    jsonArray1(subjects, branch);
+    jsonArray1(predicates, predicate);
+
+    contexts.reset();
+    contexts.put(`["project:."]`);
+
+    jsonArray1(actors, "graunde");
+
+    source.reset();
+    source.put("graunde ");
+    source.put(versionString());
+
+    jsonAttributes(attributes, predicate, detail);
+
+    idBuf.reset();
+    idBuf.put(id);
+
+    enum sql = "INSERT OR IGNORE INTO attestations (id, subjects, predicates, contexts, actors, timestamp, source, attributes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)\0";
+
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
+        return;
+    sqlite3_bind_text(stmt, 1, idBuf.ptr(), cast(int) idBuf.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, subjects.ptr(), cast(int) subjects.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, predicates.ptr(), cast(int) predicates.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, contexts.ptr(), cast(int) contexts.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, actors.ptr(), cast(int) actors.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, ts.ptr, cast(int) ts.length, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 7, source.ptr(), cast(int) source.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 8, attributes.ptr(), cast(int) attributes.len, SQLITE_TRANSIENT);
+
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
 }
 
 // Average of the top 3 longest recent CI durations for a branch (seconds).
@@ -710,6 +782,9 @@ const(char)[] checkCIStatus(const(char)[] cwd, const(char)[] branch) {
     // Trim trailing newline
     if (n > 0 && outBuf[n - 1] == '\n') n--;
     if (n == 0) return null;
-    return outBuf[0 .. n];
+    auto result = outBuf[0 .. n];
+    // gh returns "null" fields when no run exists for the branch
+    if (indexOf(result, "null") >= 0) return null;
+    return result;
 }
 
