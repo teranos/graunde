@@ -16,7 +16,7 @@
 
 # Binaries
 graunde
-graunde-test-application
+graunde-test-*
 
 # Generated
 .version
