@@ -156,7 +156,7 @@ extern (C) int main() {
 
             if (result.control !is null) {
                 // Msg-only control — no amendment, just decision + context
-                // TODO(#3): query branch story and append to context
+
                 if (result.control.arg.value.length == 0 && result.control.omit.value.length == 0) {
                     // Once per session: skip if already fired
                     import sqlite : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;

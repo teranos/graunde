@@ -1,5 +1,9 @@
 module ax;
 
+// TODO: branch story — query all attestations for the branch and produce a full
+// narrative of what happened (edits, pushes, CI, reviews). Include in additionalContext
+// on Stop so Claude has the complete picture, not just individual control checks.
+
 import controls : Control, control, stop, Ax, Trigger, Msg, ax, msg;
 import sqlite : sqlite3, axQuery, ZBuf;
 import matcher : indexOf, contains;

@@ -55,6 +55,8 @@ void attestTypes() {
     sqlite3_close(db);
 }
 
+// TODO: extract and attest `model` field — track which model worked on what
+// TODO: extract `agent_type` field — adjust controls for agent vs interactive sessions
 int handleSessionStart(const(char)[] source, const(char)[] cwd) {
     attestTypes();
 
@@ -89,7 +91,9 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd) {
         return 0;
     }
 
-    // TODO(#23): compact — re-inject session awareness lost in compaction
-    // TODO(#24): resume — stale branch awareness after time away
+    // TODO: compact — compaction summary may lose session-specific context graunde injected.
+    //   Re-inject reminders and session state that got lost.
+    // TODO: resume — happens after time away. Merges may have landed on main, branch may be stale.
+    //   Check branch staleness against main, surface recent upstream changes.
     return 0;
 }

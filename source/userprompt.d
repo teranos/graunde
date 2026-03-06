@@ -1,5 +1,10 @@
 module userprompt;
 
+// TODO: keyword matching is case-sensitive and brittle (" ax " needs surrounding spaces)
+// TODO: decision:block support — reject prompts that match certain patterns
+// TODO: migrate keyword reminders to the control system in controls.d
+// TODO: use permission_mode to adjust behavior (e.g. stricter in plan mode)
+
 import parse : extractJsonString;
 import matcher : contains;
 import sqlite : ZBuf, openDb, attestationExists, attestEvent, sqlite3_close;

@@ -1,24 +1,36 @@
 module controls;
 
 enum HookEvent {
-    SessionStart,       // #5: arch context
-    UserPromptSubmit,   // #6: keyword reminders
-    PreToolUse,
-    PermissionRequest,  // TODO(#7)
-    PostToolUse,        // #8: attested, response captured, CI nudge on git push. TODO: #25 tool-name matching, #26 corrective feedback, #27 MCP output
-    PostToolUseFailure, // TODO(#9)
-    Notification,       // TODO(#10)
-    SubagentStart,      // TODO(#11)
-    SubagentStop,       // TODO(#12)
-    Stop,               // #13: ax controls
-    TeammateIdle,       // TODO(#14)
-    TaskCompleted,      // TODO(#15)
-    ConfigChange,       // TODO(#16)
-    WorktreeCreate,     // TODO(#17)
-    WorktreeRemove,     // TODO(#18)
-    PreCompact,         // TODO(#19): attested, no controls yet
-    Setup,              // TODO(#21): undocumented upstream
-    SessionEnd,         // TODO(#20)
+    SessionStart,       // arch context
+    UserPromptSubmit,   // keyword reminders
+    PreToolUse,         // command amendment, file-path controls, scoped decisions
+                        // TODO: updatedInput for non-Bash tools (file_path, pattern, offset, etc.)
+    PermissionRequest,  // TODO: auto-allow/deny permission dialogs
+    PostToolUse,        // attested, response captured, CI nudge on git push
+                        // TODO: tool-name matching — fires for all tools (Edit, Write, Read, Glob,
+                        //   Grep, Agent, WebFetch, WebSearch, MCP) but only Bash matched by string
+                        // TODO: decision:block with reason — corrective feedback after tool runs
+                        //   (e.g. after Write to .d file, remind to run tests)
+                        // TODO: updatedMCPToolOutput — replace MCP tool output (requires MCP in use)
+                        // TODO: exit 2 — stderr fed back to Claude as feedback
+                        // TODO: continue:false — halt Claude entirely after a tool completes
+                        // TODO: suppressOutput:true — hide stdout from verbose mode
+    PostToolUseFailure, // TODO: additionalContext on failure — give Claude context about what went wrong
+    Notification,       // TODO: additionalContext on notification — can't block/modify
+                        //   matchers: permission_prompt, idle_prompt, auth_success, elicitation_dialog
+    SubagentStart,      // TODO: additionalContext injected into subagent's context on spawn
+    SubagentStop,       // TODO: decision:block with reason — same pattern as Stop
+    Stop,               // ax controls, deferred messages, lazy-verify, CI nudge
+    TeammateIdle,       // TODO: quality gates before teammate stops — exit 2 to continue, continue:false to halt
+    TaskCompleted,      // TODO: enforce completion criteria — exit 2 blocks with feedback, continue:false halts
+    ConfigChange,       // TODO: block unwanted config changes mid-session (exit 2, except policy_settings)
+    WorktreeCreate,     // TODO: agent worktree creation — stdout prints path, non-zero exit fails creation
+    WorktreeRemove,     // TODO: agent worktree cleanup
+    PreCompact,         // TODO: capture session state before compaction so it survives context loss
+                        //   trigger (manual/auto), custom_instructions — ties into SessionStart re-injection
+    Setup,              // TODO: runs on --init/--init-only/--maintenance before session starts
+                        //   undocumented upstream (shipped 2.1.10, absent from hooks reference)
+    SessionEnd,         // TODO: session wrap-up — final attestation, summarize what happened
 }
 
 struct Cmd {
