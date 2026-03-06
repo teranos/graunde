@@ -215,7 +215,7 @@ extern (C) int main() {
     if (event == HookEvent.SessionStart) {
         auto source = extractSource(input);
         import sessionstart : handleSessionStart;
-        return handleSessionStart(source);
+        return handleSessionStart(source, cwd);
     }
 
     // PostToolUse — check for CI deferral

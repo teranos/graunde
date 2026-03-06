@@ -38,12 +38,37 @@ void attestTypes() {
     sqlite3_close(db);
 }
 
-int handleSessionStart(const(char)[] source) {
+int handleSessionStart(const(char)[] source, const(char)[] cwd) {
     attestTypes();
 
-    // Arch context on fresh starts only
-    if (source is null || contains(source, "startup") || contains(source, "clear")) {
-        fputs(SESSION_CONTEXT.ptr, stdout);
+    // Check for project-scoped deferred messages (from QNTX)
+    const(char)[] projectNews = null;
+    {
+        import sqlite : openDb, sqlite3_close;
+        import deferred : readProjectDeferredMessage, markProjectDelivered;
+        auto db = openDb();
+        if (db !is null) {
+            auto projDeferred = readProjectDeferredMessage(db, cwd);
+            if (projDeferred.message !is null) {
+                markProjectDelivered(db, projDeferred.name, projDeferred.projectContext);
+                projectNews = projDeferred.message;
+            }
+            sqlite3_close(db);
+        }
+    }
+
+    bool isStartup = source is null || contains(source, "startup") || contains(source, "clear");
+
+    if (isStartup || projectNews !is null) {
+        import parse : writeJsonString;
+        fputs(`{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"`, stdout);
+        if (isStartup)
+            fputs("arch: " ~ ARCH, stdout);
+        if (isStartup && projectNews !is null)
+            fputs(" | ", stdout);
+        if (projectNews !is null)
+            writeJsonString(projectNews);
+        fputs(`"}}` ~ "\n", stdout);
         return 0;
     }
 

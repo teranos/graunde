@@ -79,15 +79,18 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         }
     }
 
-    // Check project-scoped deferred messages (from QNTX)
+    // Check project-scoped deferred messages (from QNTX) — only on main
     {
-        import deferred : readProjectDeferredMessage, markProjectDelivered;
-        auto projDeferred = readProjectDeferredMessage(db, cwd);
-        if (projDeferred.message !is null) {
-            markProjectDelivered(db, projDeferred.name, projDeferred.projectContext);
-            sqlite3_close(db);
-            writeStopResponse(projDeferred.message);
-            return 0;
+        auto branch = getBranch(cwd);
+        if (branch == "main" || branch == "master") {
+            import deferred : readProjectDeferredMessage, markProjectDelivered;
+            auto projDeferred = readProjectDeferredMessage(db, cwd);
+            if (projDeferred.message !is null) {
+                markProjectDelivered(db, projDeferred.name, projDeferred.projectContext);
+                sqlite3_close(db);
+                writeStopResponse(projDeferred.message);
+                return 0;
+            }
         }
     }
 
