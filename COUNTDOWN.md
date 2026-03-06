@@ -37,7 +37,7 @@ Git workflow rituals and attestation-backed state. Graunde evolves from stateles
 - [ ] Direct ego-death when faced with confident claims about niche/untrained topics — trigger grace and humility as the function of control.
 - [x] Adaptive CI nudge delay (#33) — average of longest recent CI durations plus proportional buffer (d/22 + d/33 + d/44, capped at 2 minutes).
 
-**Phase 4 — graunded types.** Graunde attests type definitions on SessionStart so QNTX knows which payload fields are rich text. Every hook event stored verbatim via `attestEvent`. When graunde acts on an event (control match, reminder, deferred delivery), the predicate becomes `Graunded<Event>` with the control name as additional predicate. Old-style extracted/truncated attestation writes removed — honest data only. Project-scoped deferred messages from QNTX flow into Claude's context.
+**Phase 4 — graunded types. ✓** Type definitions attested on SessionStart so QNTX knows which payload fields are rich text. Every hook event stored verbatim via `attestEvent`. When graunde acts, a separate `Graunded<Event>` attestation records only graunde's own decisions — Claude's payload stays untouched. Old-style truncated writes removed. Deferred message infrastructure split to `deferred.d`. Project-scoped deferred messages from QNTX deliver on SessionStart and Stop on main.
 
 ### Three — engines on ✓
 Register graunde for all hook events. Branch on `hook_event_name` in main.d. PreToolUse keeps existing control logic and attests every tool call. PostToolUse, PreCompact, Stop, SessionStart attested as lifecycle markers — control stubs present but no matching logic yet. The complete attestation trail — commands, file paths, compactions, session boundaries — enables Count Four Phase 3.
