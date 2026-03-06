@@ -29,6 +29,19 @@ import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fprintf, fwrite;
 import core.stdc.stdlib : exit;
 import core.sys.posix.unistd : isatty;
 
+// Extract PR number from "gh pr comment 39 ..." or "gh pr review 39 ..."
+const(char)[] extractPrNumber(const(char)[] cmd) {
+    foreach (prefix; ["gh pr comment ", "gh pr review "]) {
+        auto idx = indexOf(cmd, prefix);
+        if (idx < 0) continue;
+        auto start = cast(size_t) idx + prefix.length;
+        auto end = start;
+        while (end < cmd.length && cmd[end] >= '0' && cmd[end] <= '9') end++;
+        if (end > start) return cmd[start .. end];
+    }
+    return null;
+}
+
 // Parse hook_event_name string to HookEvent. CTFE-unrolled.
 bool parseHookEvent(const(char)[] name, ref HookEvent event) {
     static foreach (member; __traits(allMembers, HookEvent)) {
@@ -262,6 +275,26 @@ extern (C) int main() {
                     msgBuf.put(" --limit 1");
                     writeDeferredMessage(db, "ci-check", cwd, sessionId, msgBuf.slice(), delay);
                 }
+                sqlite3_close(db);
+            }
+        }
+
+        // After gh pr comment/review containing @claude review — defer reminder
+        if (detail !is null && contains(detail, "gh pr") && contains(detail, "@claude review")) {
+            import sqlite : openDb, sqlite3_close, ZBuf;
+            import deferred : writeDeferredMessage;
+            auto db = openDb();
+            if (db !is null) {
+                __gshared ZBuf reviewMsg;
+                reviewMsg.reset();
+                reviewMsg.put("Claude left a review comment. Check PR");
+                auto prNum = extractPrNumber(detail);
+                if (prNum.length > 0) {
+                    reviewMsg.put(" #");
+                    reviewMsg.put(prNum);
+                }
+                reviewMsg.put(" for @claude review comments.");
+                writeDeferredMessage(db, "review-nudge", cwd, sessionId, reviewMsg.slice(), 300);
                 sqlite3_close(db);
             }
         }
