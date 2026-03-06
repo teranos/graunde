@@ -460,7 +460,7 @@ const(char)[] checkCIStatus(const(char)[] cwd, const(char)[] branch) {
     ghCmd.put(cwd);
     ghCmd.put(" && gh run list --branch ");
     ghCmd.put(branch);
-    ghCmd.put(` --limit 1 --json conclusion,name,event --jq '.[0] | "\(.conclusion // "in_progress") \(.name) (\(.event))"'`);
+    ghCmd.put(` --limit 1 --json conclusion,name,event --jq 'if length == 0 then empty else .[0] | "\(.conclusion // "in_progress") \(.name) (\(.event))" end'`);
 
     auto pipe = popen(ghCmd.ptr(), "r");
     if (pipe is null) return null;
