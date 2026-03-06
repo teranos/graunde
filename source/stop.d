@@ -58,7 +58,7 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         if (deferred.message !is null) {
             markDelivered(db, deferred.name, cwd, sessionId);
 
-            // ci-check: query live status instead of emitting static message
+            // ci-check: query live status, say nothing if no runs exist
             if (contains(deferred.name, "ci-check")) {
                 auto branch = getBranch(cwd);
                 auto status = branch !is null ? checkCIStatus(cwd, branch) : null;
@@ -71,6 +71,9 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                     writeStopResponse(ciBuf.slice());
                     return 0;
                 }
+                // No CI runs — nothing to report
+                sqlite3_close(db);
+                return 0;
             }
 
             sqlite3_close(db);
