@@ -443,9 +443,8 @@ int getCIAvgDuration(const(char)[] cwd, const(char)[] branch) {
 }
 
 // Compute deferred delay: avg duration + proportional buffer (d/22 + d/33 + d/44), capped at 120s.
-// Default delay: 20 seconds when no CI data yet.
 int computeDelay(int avgDuration) {
-    if (avgDuration <= 0) return 20;
+    if (avgDuration <= 0) return 60;
     int buffer = avgDuration / 22 + avgDuration / 33 + avgDuration / 44;
     if (buffer > 120) buffer = 120;
     return avgDuration + buffer;
