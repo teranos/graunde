@@ -15,6 +15,10 @@ static immutable universal = [
         msg("")),
     control("ci-watch", cmd("gh run watch"),
         msg("")),
+    control("issue-list", cmd("gh issue list"),
+        msg("")),
+    control("issue-view", cmd("gh issue view"),
+        msg("")),
 ];
 
 static immutable checkpoints = [
