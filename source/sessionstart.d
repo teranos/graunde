@@ -10,6 +10,23 @@ else enum ARCH = "unknown";
 
 enum SESSION_CONTEXT = `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"arch: ` ~ ARCH ~ `"}}` ~ "\n";
 
+// Graunded Types — QNTX Attestation Schema
+//
+// Attested on every SessionStart so QNTX knows what to do with the data.
+// ID: graunde:type:<name>:<version> — re-attested when graunde updates.
+// INSERT OR IGNORE prevents duplicates within the same version.
+//
+// Event types — attributes contain the raw Claude Code hook payload, verbatim.
+// Type definitions specify rich_string_fields so QNTX knows which fields are long text.
+//
+// Grounded types — when graunde acts on an event, a separate attestation records
+// only graunde's own decisions. Claude's payload stays in the event attestation.
+//   GraundedPreToolUse: control, decision
+//   GraundedStop:       control
+//   GraundedUserPromptSubmit: control
+//
+// Schema: see sqlite.d attestType / attestEvent.
+//
 // TODO: verify every event type's payload fields for rich string eligibility.
 // Only UserPromptSubmit (prompt) and Stop (last_assistant_message) confirmed so far.
 void attestTypes() {
@@ -38,6 +55,8 @@ void attestTypes() {
     sqlite3_close(db);
 }
 
+// TODO: extract and attest `model` field — track which model worked on what
+// TODO: extract `agent_type` field — adjust controls for agent vs interactive sessions
 int handleSessionStart(const(char)[] source, const(char)[] cwd) {
     attestTypes();
 
@@ -64,6 +83,8 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd) {
         fputs(`{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"`, stdout);
         if (isStartup)
             fputs("arch: " ~ ARCH, stdout);
+        if (isStartup && cwd !is null && contains(cwd, "/QNTX"))
+            fputs(" | am.toml in the project root has the db path and node configuration. Check it before assuming database locations.", stdout);
         if (isStartup && projectNews !is null)
             fputs(" | ", stdout);
         if (projectNews !is null)
@@ -72,7 +93,9 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd) {
         return 0;
     }
 
-    // TODO(#23): compact — re-inject session awareness lost in compaction
-    // TODO(#24): resume — stale branch awareness after time away
+    // TODO: compact — compaction summary may lose session-specific context graunde injected.
+    //   Re-inject reminders and session state that got lost.
+    // TODO: resume — happens after time away. Merges may have landed on main, branch may be stale.
+    //   Check branch staleness against main, surface recent upstream changes.
     return 0;
 }

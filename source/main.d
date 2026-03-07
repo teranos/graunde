@@ -1,11 +1,46 @@
 module main;
 
+// Hook output reference — graunde responds via exit code and optional JSON on stdout.
+//
+// Exit codes:
+//   0     — action proceeds, stdout parsed for JSON
+//   2     — action blocked, stderr fed to Claude as error
+//   other — non-blocking error, action proceeds
+//
+// Top-level response fields:
+//   continue           — (Stop) true makes Claude continue instead of stopping
+//   suppressOutput     — suppress hook output from display
+//   decision           — "approve" or "block"
+//   reason             — explanation for the decision
+//   systemMessage      — injected as system message to Claude
+//   permissionDecision — "allow", "deny", or "ask"
+//
+// hookSpecificOutput (PreToolUse, UserPromptSubmit, PostToolUse):
+//   hookEventName            — must match the event
+//   permissionDecision       — (PreToolUse) "allow", "deny", or "ask"
+//   permissionDecisionReason — (PreToolUse) shown to user (allow/ask) or Claude (deny)
+//   updatedInput             — (PreToolUse) replaces tool input before execution
+//   additionalContext        — (UserPromptSubmit required, PostToolUse optional) injected into context
+
 import matcher : checkCommand, applyArg, applyOmit, checkFilePath, FileMatch, indexOf, contains, hasSegment, Buf;
 import parse : extractCommand, extractCwd, extractSessionId, extractToolUseId, extractHookEventName, extractToolName, extractFilePath, extractSource, writeJsonString, fputs2;
 import controls : HookEvent;
 import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fprintf, fwrite;
 import core.stdc.stdlib : exit;
 import core.sys.posix.unistd : isatty;
+
+// Extract PR number from "gh pr comment 39 ..." or "gh pr review 39 ..."
+const(char)[] extractPrNumber(const(char)[] cmd) {
+    foreach (prefix; ["gh pr comment ", "gh pr review "]) {
+        auto idx = indexOf(cmd, prefix);
+        if (idx < 0) continue;
+        auto start = cast(size_t) idx + prefix.length;
+        auto end = start;
+        while (end < cmd.length && cmd[end] >= '0' && cmd[end] <= '9') end++;
+        if (end > start) return cmd[start .. end];
+    }
+    return null;
+}
 
 // Parse hook_event_name string to HookEvent. CTFE-unrolled.
 bool parseHookEvent(const(char)[] name, ref HookEvent event) {
@@ -134,7 +169,7 @@ extern (C) int main() {
 
             if (result.control !is null) {
                 // Msg-only control — no amendment, just decision + context
-                // TODO(#3): query branch story and append to context
+
                 if (result.control.arg.value.length == 0 && result.control.omit.value.length == 0) {
                     // Once per session: skip if already fired
                     import sqlite : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;
@@ -205,7 +240,7 @@ extern (C) int main() {
         return handleUserPromptSubmit(input, cwd, sessionId);
     }
 
-    // Stop — attest and check ax controls
+    // Stop — trail controls, deferred messages, lazy-verify
     if (event == HookEvent.Stop) {
         import stop : handleStop;
         return handleStop(input, cwd, sessionId);
@@ -240,6 +275,26 @@ extern (C) int main() {
                     msgBuf.put(" --limit 1");
                     writeDeferredMessage(db, "ci-check", cwd, sessionId, msgBuf.slice(), delay);
                 }
+                sqlite3_close(db);
+            }
+        }
+
+        // After gh pr comment/review containing @claude review — defer reminder
+        if (detail !is null && contains(detail, "gh pr") && contains(detail, "@claude review")) {
+            import sqlite : openDb, sqlite3_close, ZBuf;
+            import deferred : writeDeferredMessage;
+            auto db = openDb();
+            if (db !is null) {
+                __gshared ZBuf reviewMsg;
+                reviewMsg.reset();
+                reviewMsg.put("Claude left a review comment. Check PR");
+                auto prNum = extractPrNumber(detail);
+                if (prNum.length > 0) {
+                    reviewMsg.put(" #");
+                    reviewMsg.put(prNum);
+                }
+                reviewMsg.put(" for @claude review comments.");
+                writeDeferredMessage(db, "review-nudge", cwd, sessionId, reviewMsg.slice(), 300);
                 sqlite3_close(db);
             }
         }
