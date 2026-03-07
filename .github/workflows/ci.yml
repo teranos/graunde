@@ -24,8 +24,6 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-linux
-          - os: macos-13
-            target: x86_64-darwin
           - os: macos-latest
             target: aarch64-darwin
     runs-on: ${{ matrix.os }}
