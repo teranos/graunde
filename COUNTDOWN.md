@@ -35,8 +35,8 @@ Register graunde for all hook events. Branch on `hook_event_name` in main.d. Pre
 ### Two — check ignition
 Audit all open issues and move actionable information into the source — the binary is the backlog. Close issues that become TODOs in `controls.d` or other source files. Standalone db — graunde creates its own schema when no QNTX node db is available.
 
-### One — and may God's love
-The binary is the config. Distribution via Claude Code plugin — two JSON files, no binary shipped. A shell wrapper checks PATH for graunde; if missing, SessionStart tells Claude to figure out the installation. Claude handles platform detection, toolchain setup, and compilation. Self-recompilation: hash controls source at compile time via CTFE, compare at runtime, rebuild on mismatch. Tag staleness: compare baked-in `git describe` against upstream. A Graunde Control Skill bridges the gap: user describes a control in natural language, Claude writes the D, graunde self-recompiles.
+### One — and may God's love ✓
+The binary is the config. Distribution via Claude Code plugin — two JSON files, no binary shipped. SessionStart checks PATH for graunde; if missing, tells Claude to figure out the installation. Self-verification: CTFE hash of controls source compared at runtime, warns when binary is stale. Tag staleness: baked-in `git describe` compared against GitHub Releases API on startup.
 
 ### Liftoff — be with you
 Open source readiness. README, CONTRIBUTING, LICENSE review, GitHub releases, install-from-source instructions.
