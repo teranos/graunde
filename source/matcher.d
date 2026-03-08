@@ -391,7 +391,7 @@ unittest {
     // git commit triggers checkpoint with "ask" decision
     auto result = checkCommand("git commit -m \"hello\"", OTHER);
     assert(result.control !is null);
-    assert(result.control.name == "commit-checkpoint");
+    assert(result.control.name == "git-commit");
     assert(result.decision == "ask");
 }
 
@@ -399,7 +399,7 @@ unittest {
     // gh pr create triggers checkpoint with "ask" decision
     auto result = checkCommand("gh pr create --title \"fix\"", OTHER);
     assert(result.control !is null);
-    assert(result.control.name == "pr-checkpoint");
+    assert(result.control.name == "pr-create");
     assert(result.decision == "ask");
 }
 
@@ -422,7 +422,7 @@ unittest {
     // git push triggers checkpoint with "ask" decision
     auto result = checkCommand("git push origin main", OTHER);
     assert(result.control !is null);
-    assert(result.control.name == "push-checkpoint");
+    assert(result.control.name == "git-push-pull-first");
     assert(result.decision == "ask");
 }
 
@@ -438,7 +438,7 @@ unittest {
     // git tag triggers checkpoint with "ask" decision
     auto result = checkCommand("git tag -a v1.0.0 -m \"release\"", OTHER);
     assert(result.control !is null);
-    assert(result.control.name == "tag-checkpoint");
+    assert(result.control.name == "git-tag-semver");
     assert(result.decision == "ask");
 }
 
@@ -446,7 +446,7 @@ unittest {
     // git checkout -b triggers branch checkpoint with "ask" decision
     auto result = checkCommand("git checkout -b feature-branch", OTHER);
     assert(result.control !is null);
-    assert(result.control.name == "branch-checkpoint");
+    assert(result.control.name == "git-checkout-b");
     assert(result.decision == "ask");
 }
 

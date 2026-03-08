@@ -50,6 +50,26 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         }
     }
 
+    // ego-death — catch overconfident language in responses
+    {
+        import matcher : contains;
+        auto lastMsg = extractLastAssistantMessage(input);
+        if (lastMsg !is null) {
+            if (contains(lastMsg, "The most effective fix is")) {
+                attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"ego-death"}`);
+                sqlite3_close(db);
+                writeStopResponse(`You said "The most effective fix is" — according to whom? The user will go apeshit if you are pulling this out of your ass, be sure to ground it in verification or real facts.`);
+                return 0;
+            }
+            if (contains(lastMsg, "Nothing left to do")) {
+                attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"ego-death"}`);
+                sqlite3_close(db);
+                writeStopResponse(`You said "Nothing left to do" — you made a completeness claim. What specifically was not verified?`);
+                return 0;
+            }
+        }
+    }
+
     // Check session-scoped deferred messages — deliver if ready
     {
         import deferred : readDeferredMessage, markDelivered, DeferredMsg, checkCIStatus;

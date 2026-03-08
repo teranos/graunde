@@ -28,19 +28,19 @@ static immutable universal = [
 ];
 
 static immutable checkpoints = [
-    control("commit-checkpoint", cmd("git commit"),
+    control("git-commit", cmd("git commit"),
         msg("Commit requires manual approval")),
-    control("push-checkpoint", cmd("git push"),
+    control("git-push-pull-first", cmd("git push"),
         msg("If you haven't pulled since the last commit, pull first and resolve conflicts before pushing")),
-    control("tag-checkpoint", cmd("git tag"),
+    control("git-tag-semver", cmd("git tag"),
         msg("Check the latest tag first and ensure the new version follows semver")),
-    control("pr-checkpoint", cmd("gh pr create"),
+    control("pr-create", cmd("gh pr create"),
         msg("PR creation requires manual approval")),
-    control("pr-edit-checkpoint", cmd("gh pr edit"),
+    control("pr-edit-ref-reminder", cmd("gh pr edit"),
         msg("Reference any docs edited or created in this PR")),
-    control("branch-checkpoint", cmd("git checkout -b"),
+    control("git-checkout-b", cmd("git checkout -b"),
         msg("Check main for unpushed commits and push them first. Update documentation to describe intended behavior. Ask critical design questions. Then open a PR.")),
-    control("merge-checkpoint", cmd("gh pr merge"),
+    control("pr-merge-checkout-main", cmd("gh pr merge"),
         msg("After merge, checkout main and pull to sync local.")),
 ];
 
@@ -57,6 +57,8 @@ static immutable qntxFiles = [
         msg("Read web/CLAUDE.md before editing frontend files.")),
     control("web-ts-banned", filepath("/web/ts/"),
         msg("BANNED in frontend: alert(), confirm(), prompt(), toast(). Button component has built-in error handling (throw from onClick). Check component APIs before implementing.")),
+    control("plugin-install", filepath("/qntx-plugins/"),
+        msg("The user prefers not having to run make <plugin-name>-plugin every time you finish working on one, do it for them.")),
 ];
 
 static immutable graunde = [
