@@ -38,8 +38,8 @@ bool controlsAreStale(const(char)[] cwd) {
 
     static foreach (suffix; ["/source/controls.d", "/source/hooks.d"]) {{
         if (cwd.length + suffix.length + 1 > pathBuf.length) return false;
-        pathBuf[0 .. cwd.length] = cwd[];
-        pathBuf[cwd.length .. cwd.length + suffix.length] = suffix[];
+        foreach (j, c; cwd) pathBuf[j] = c;
+        foreach (j, c; suffix) pathBuf[cwd.length + j] = c;
         pathBuf[cwd.length + suffix.length] = 0;
 
         auto f = fopen(&pathBuf[0], "r");
@@ -118,7 +118,7 @@ const(char)[] checkTagStaleness() {
     auto remoteTag = data[start .. end];
     __gshared char[64] remoteBuf;
     if (remoteTag.length > remoteBuf.length) return null;
-    remoteBuf[0 .. remoteTag.length] = remoteTag[];
+    foreach (j, c; remoteTag) remoteBuf[j] = c;
 
     if (isNewerVersion(remoteBuf[0 .. remoteTag.length], localVer[0 .. localLen]))
         return remoteBuf[0 .. remoteTag.length];
