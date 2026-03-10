@@ -253,6 +253,16 @@ extern (C) int main() {
         return handleSessionStart(source, cwd);
     }
 
+    // PreCompact — re-inject context that would be lost to compaction
+    if (event == HookEvent.PreCompact) {
+        import matcher : contains;
+        if (cwd !is null && contains(cwd, "/QNTX")) {
+            fputs(`{"hookSpecificOutput":{"hookEventName":"PreCompact","additionalContext":"am.toml in the project root has the db path and node configuration. Check it before assuming database locations."}}`, stdout);
+            fputs("\n", stdout);
+        }
+        return 0;
+    }
+
     // PostToolUse — check for CI deferral
     if (event == HookEvent.PostToolUse) {
         auto detail = extractCommand(input);

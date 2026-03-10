@@ -69,27 +69,13 @@ struct ZBuf {
 
 // --- DB lifecycle ---
 
-// QNTX node db — preferred when available.
-enum QNTX_DB_PATH = "/Users/s.b.vanhouten/SBVH/teranos/tmp3/QNTX/.qntx/tmp32.db\0";
-
 extern (C) {
     const(char)* getenv(const(char)* name);
     int mkdir(const(char)* path, uint mode);
 }
 
-// Try QNTX node db first, fall back to standalone graunde db.
+// Open graunde's own db at ~/.local/share/graunde/graunde.db
 sqlite3* openDb() {
-    // Try QNTX db
-    sqlite3* db;
-    if (sqlite3_open(QNTX_DB_PATH.ptr, &db) == SQLITE_OK) {
-        if (sqlite3_exec(db, "SELECT 1 FROM attestations LIMIT 0\0".ptr, null, null, null) == SQLITE_OK)
-            return db;
-        sqlite3_close(db);
-    } else {
-        if (db !is null) sqlite3_close(db);
-    }
-
-    // Fall back to standalone db
     return openStandaloneDb();
 }
 

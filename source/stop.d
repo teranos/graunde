@@ -50,6 +50,26 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         }
     }
 
+    // QNTX-scoped Stop controls
+    {
+        import matcher : contains;
+        auto lastMsg = extractLastAssistantMessage(input);
+        if (lastMsg !is null && cwd !is null && contains(cwd, "/QNTX")) {
+            if (contains(lastMsg, "make wasm")) {
+                attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"make-dev-includes-wasm"}`);
+                sqlite3_close(db);
+                writeStopResponse(`Please note that "make dev" also rebuilds the wasm, see the Makefile.`);
+                return 0;
+            }
+            if (contains(lastMsg, "binary might be stale") || contains(lastMsg, "binary may be stale")) {
+                attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"no-stale-binary-speculation"}`);
+                sqlite3_close(db);
+                writeStopResponse(`The developer is always running the latest version. Do not speculate about stale binaries.`);
+                return 0;
+            }
+        }
+    }
+
     // ego-death — catch overconfident language in responses
     {
         import matcher : contains;
