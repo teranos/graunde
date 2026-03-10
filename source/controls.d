@@ -59,6 +59,8 @@ static immutable qntxFiles = [
         msg("BANNED in frontend: alert(), confirm(), prompt(), toast(). Button component has built-in error handling (throw from onClick). Check component APIs before implementing.")),
     control("plugin-install", filepath("/qntx-plugins/"),
         msg("The user prefers not having to run make <plugin-name>-plugin every time you finish working on one, do it for them.")),
+    control("web-testing-docs", filepath(".test.ts"),
+        msg("Read web/TESTING.md before writing or editing tests. CI uses USE_JSDOM=1. .dom.test.ts files use JSDOM skip pattern. happy-dom is the local default.")),
 ];
 
 static immutable graunde = [

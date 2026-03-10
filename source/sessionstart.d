@@ -159,8 +159,8 @@ void attestTypes() {
     ])
         attestType(db, name, "ClaudeCode", `{}`);
 
-    attestType(db, "UserPromptSubmit", "ClaudeCode", `{"rich_string_fields":["prompt"]}`);
-    attestType(db, "Stop", "ClaudeCode", `{"rich_string_fields":["last_assistant_message"]}`);
+    attestType(db, "UserPromptSubmit", "ClaudeCode", `{}`);
+    attestType(db, "Stop", "ClaudeCode", `{}`);
 
     // Grounded types — <Type> is type of Graunded
     attestType(db, "GraundedPreToolUse", "Graunded", `{}`);
