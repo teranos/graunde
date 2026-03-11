@@ -343,7 +343,7 @@ void attestEvent(
 
     // Fire-and-forget UDP to loom
     import loom : sendToLoom;
-    sendToLoom(subjects, predicates, payload);
+    sendToLoom(subjects, predicates, contexts, payload);
 }
 
 // --- Type attestation ---

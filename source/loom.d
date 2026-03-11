@@ -23,8 +23,8 @@ struct sockaddr_in {
 // 64KB packet buffer — localhost UDP supports up to 65507 bytes
 __gshared char[65536] pktBuf = 0;
 
-void sendToLoom(ref ZBuf subjects, ref ZBuf predicates, const(char)[] attributes) {
-    // Build JSON: {"subjects":...,"predicates":...,"attributes":...}
+void sendToLoom(ref ZBuf subjects, ref ZBuf predicates, ref ZBuf contexts, const(char)[] attributes) {
+    // Build JSON: {"subjects":...,"predicates":...,"contexts":...,"attributes":...}
     size_t pos = 0;
 
     void append(const(char)[] s) {
@@ -38,6 +38,8 @@ void sendToLoom(ref ZBuf subjects, ref ZBuf predicates, const(char)[] attributes
     append(subjects.slice());
     append(`,"predicates":`);
     append(predicates.slice());
+    append(`,"contexts":`);
+    append(contexts.slice());
     append(`,"attributes":`);
     append(attributes);
     append("}");
