@@ -170,6 +170,20 @@ bool attestationExists(sqlite3* db, const(char)[] graundedPredicate, const(char)
     return found;
 }
 
+// Extract last two path components from cwd.
+// "/Users/s.b.vanhouten/SBVH/teranos/tmp/graunde" → "tmp/graunde"
+const(char)[] cwdTail(const(char)[] path) {
+    if (path.length == 0) return "unknown";
+    // Find last slash
+    size_t last = path.length;
+    while (last > 0 && path[last - 1] != '/') last--;
+    if (last == 0) return path;
+    // Find second-to-last slash
+    size_t prev = last - 1;
+    while (prev > 0 && path[prev - 1] != '/') prev--;
+    return path[prev .. $];
+}
+
 // --- Branch name ---
 
 // NOTE: cwd is passed into popen unescaped. Trusted — comes from Claude Code's hook payload.
@@ -284,7 +298,13 @@ void attestEvent(
     __gshared ZBuf source;
     __gshared ZBuf idBuf;
 
-    jsonArray1(subjects, branch);
+    // Build subject: "parent/repo:branch"
+    __gshared ZBuf subjectVal;
+    subjectVal.reset();
+    subjectVal.put(cwdTail(cwd));
+    subjectVal.put(":");
+    subjectVal.put(branch);
+    jsonArray1(subjects, subjectVal.slice());
     jsonArray1(predicates, eventName);
 
     contexts.reset();
