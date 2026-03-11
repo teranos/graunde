@@ -144,10 +144,7 @@ extern (C) int main() {
     auto eventName = extractHookEventName(input);
     if (eventName is null) return 0;
 
-    HookEvent event;
-    if (!parseHookEvent(eventName, event)) return 0;
-
-    // Attest every event — full payload, no extraction
+    // Attest every event — even ones we don't handle yet
     {
         import sqlite : openDb, attestEvent, sqlite3_close;
         auto db = openDb();
@@ -156,6 +153,9 @@ extern (C) int main() {
             sqlite3_close(db);
         }
     }
+
+    HookEvent event;
+    if (!parseHookEvent(eventName, event)) return 0;
 
     if (event == HookEvent.PreToolUse) {
         auto toolName = extractToolName(input);

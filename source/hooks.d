@@ -30,6 +30,7 @@ enum HookEvent {
                         //   trigger (manual/auto), custom_instructions — ties into SessionStart re-injection
     Setup,              // TODO: runs on --init/--init-only/--maintenance before session starts
                         //   undocumented upstream (shipped 2.1.10, absent from hooks reference)
+    InstructionsLoaded, // fires when CLAUDE.md or .claude/rules/*.md is loaded
     SessionEnd,         // TODO: session wrap-up — final attestation, summarize what happened
 }
 
