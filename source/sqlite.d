@@ -320,6 +320,10 @@ void attestEvent(
 
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
+
+    // Fire-and-forget UDP to loom
+    import loom : sendToLoom;
+    sendToLoom(subjects, predicates, payload);
 }
 
 // --- Type attestation ---
