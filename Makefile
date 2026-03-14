@@ -1,7 +1,6 @@
 .PHONY: build test install
 
 PREFIX ?= $(HOME)/.local
-
 build:
 	dub build --build=release
 

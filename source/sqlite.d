@@ -1,7 +1,7 @@
 module sqlite;
 
 import matcher : indexOf, contains;
-import core.stdc.stdio : fread, FILE;
+import core.stdc.stdio : fread, fopen, fclose, FILE;
 import core.stdc.time : time, time_t, tm, gmtime;
 
 // --- sqlite3 C bindings (minimal) ---
@@ -117,6 +117,10 @@ sqlite3* openStandaloneDb() {
         return null;
     }
 
+    enum sessionProjectSchema = "CREATE TABLE IF NOT EXISTS session_project ("
+        ~ "session_id TEXT PRIMARY KEY, project TEXT NOT NULL)\0";
+    sqlite3_exec(db, sessionProjectSchema.ptr, null, null, null);
+
     return db;
 }
 
@@ -214,28 +218,75 @@ const(char)[] cwdTail(const(char)[] path) {
 // NOTE: cwd is passed into popen unescaped. Trusted — comes from Claude Code's hook payload.
 const(char)[] getBranch(const(char)[] cwd) {
     __gshared char[256] branchBuf = 0;
-    __gshared ZBuf cmdBuf;
+    __gshared char[512] gitdirBuf = 0;
+    __gshared ZBuf pathBuf;
 
-    cmdBuf.reset();
-    cmdBuf.put("git -C ");
-    cmdBuf.put(cwd);
-    cmdBuf.put(" branch --show-current");
+    // Read .git/HEAD directly — avoids ~46ms popen subprocess
+    // Walk up from cwd to find .git (handles subdirectories of a repo)
+    // .git can be a directory (normal) or a file (worktrees: "gitdir: /path/...")
 
-    auto pipe = popen(cmdBuf.ptr(), "r");
-    if (pipe is null) return "unknown";
+    // Copy cwd so we can truncate to walk up
+    if (cwd.length == 0 || cwd.length >= gitdirBuf.length) return "unknown";
+    foreach (i, c; cwd) gitdirBuf[i] = c;
+    size_t cwdLen = cwd.length;
 
-    auto n = fread(&branchBuf[0], 1, branchBuf.length - 1, pipe);
-    pclose(pipe);
+    FILE* f = null;
+    while (cwdLen > 0) {
+        // Try cwd/.git/HEAD (normal repo)
+        pathBuf.reset();
+        pathBuf.put(gitdirBuf[0 .. cwdLen]);
+        pathBuf.put("/.git/HEAD");
+        f = fopen(pathBuf.ptr(), "r");
+        if (f !is null) break;
+
+        // Try cwd/.git as a file (worktrees)
+        pathBuf.reset();
+        pathBuf.put(gitdirBuf[0 .. cwdLen]);
+        pathBuf.put("/.git");
+        f = fopen(pathBuf.ptr(), "r");
+        if (f !is null) {
+            __gshared char[512] gdBuf = 0;
+            auto gn = fread(&gdBuf[0], 1, gdBuf.length - 1, f);
+            fclose(f);
+            f = null;
+            enum gdPrefix = "gitdir: ";
+            if (gn > gdPrefix.length && gdBuf[0 .. gdPrefix.length] == gdPrefix) {
+                size_t end = gn;
+                while (end > 0 && (gdBuf[end - 1] == '\n' || gdBuf[end - 1] == '\r'))
+                    end--;
+                if (end > gdPrefix.length) {
+                    pathBuf.reset();
+                    pathBuf.put(gdBuf[gdPrefix.length .. end]);
+                    pathBuf.put("/HEAD");
+                    f = fopen(pathBuf.ptr(), "r");
+                    if (f !is null) break;
+                }
+            }
+        }
+
+        // Walk up one directory
+        while (cwdLen > 0 && gitdirBuf[cwdLen - 1] != '/') cwdLen--;
+        if (cwdLen > 0) cwdLen--; // skip the '/'
+    }
+
+    if (f is null) return "unknown";
+
+    auto n = fread(&branchBuf[0], 1, branchBuf.length - 1, f);
+    fclose(f);
 
     if (n == 0) return "unknown";
 
-    // Strip trailing newline
-    size_t end = n;
-    while (end > 0 && (branchBuf[end - 1] == '\n' || branchBuf[end - 1] == '\r'))
-        end--;
+    // .git/HEAD contains "ref: refs/heads/<branch>\n"
+    enum prefix = "ref: refs/heads/";
+    if (n > prefix.length && branchBuf[0 .. prefix.length] == prefix) {
+        size_t end = n;
+        while (end > 0 && (branchBuf[end - 1] == '\n' || branchBuf[end - 1] == '\r'))
+            end--;
+        if (end > prefix.length)
+            return branchBuf[prefix.length .. end];
+    }
 
-    if (end == 0) return "unknown";
-    return branchBuf[0 .. end];
+    return "unknown";
 }
 
 
@@ -323,10 +374,41 @@ void attestEvent(
     __gshared ZBuf source;
     __gshared ZBuf idBuf;
 
-    // Build subject: "parent/repo:branch"
+    // Build subject: "parent/repo:branch" — e.g. "tmp3/QNTX:feat/weave-panel"
+    // Project part cached in session_project table to avoid cwd drift from cd.
     __gshared ZBuf subjectVal;
+    __gshared char[256] sessionProjectBuf = 0;
+    const(char)[] sessionProject = null;
+
+    {
+        enum lookupSql = "SELECT project FROM session_project WHERE session_id = ?1\0";
+        sqlite3_stmt* spStmt;
+        if (sqlite3_prepare_v2(db, lookupSql.ptr, -1, &spStmt, null) == SQLITE_OK) {
+            __gshared ZBuf sidBuf;
+            sidBuf.reset();
+            sidBuf.put(sessionId);
+            sqlite3_bind_text(spStmt, 1, sidBuf.ptr(), cast(int) sidBuf.len, SQLITE_TRANSIENT);
+            if (sqlite3_step(spStmt) == SQLITE_ROW) {
+                auto text = sqlite3_column_text(spStmt, 0);
+                if (text !is null) {
+                    size_t sLen = 0;
+                    while (text[sLen] != 0) sLen++;
+                    if (sLen > 0 && sLen < sessionProjectBuf.length) {
+                        foreach (i; 0 .. sLen) sessionProjectBuf[i] = (cast(const(char)*) text)[i];
+                        sessionProject = sessionProjectBuf[0 .. sLen];
+                    }
+                }
+            }
+            sqlite3_finalize(spStmt);
+        }
+    }
+
     subjectVal.reset();
-    subjectVal.put(cwdTail(cwd));
+    if (sessionProject !is null) {
+        subjectVal.put(sessionProject);
+    } else {
+        subjectVal.put(cwdTail(cwd));
+    }
     subjectVal.put(":");
     subjectVal.put(branch);
     jsonArray1(subjects, subjectVal.slice());

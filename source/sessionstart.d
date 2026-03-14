@@ -168,8 +168,33 @@ void attestTypes() {
 
 // TODO: extract and attest `model` field — track which model worked on what
 // TODO: extract `agent_type` field — adjust controls for agent vs interactive sessions
-int handleSessionStart(const(char)[] source, const(char)[] cwd) {
+int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] sessionId) {
     attestTypes();
+
+    // Cache project part of subject for this session (avoids cwd drift when Claude cd's)
+    if (sessionId !is null && cwd !is null) {
+        import sqlite : openDb, sqlite3_close, sqlite3_prepare_v2, sqlite3_bind_text,
+                        sqlite3_step, sqlite3_finalize, sqlite3_stmt, SQLITE_OK, SQLITE_TRANSIENT,
+                        cwdTail, ZBuf;
+        auto db = openDb();
+        if (db !is null) {
+            enum sql = "INSERT OR IGNORE INTO session_project (session_id, project) VALUES (?1, ?2)\0";
+            sqlite3_stmt* stmt;
+            if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) == SQLITE_OK) {
+                __gshared ZBuf sidBuf;
+                __gshared ZBuf projBuf;
+                sidBuf.reset();
+                sidBuf.put(sessionId);
+                projBuf.reset();
+                projBuf.put(cwdTail(cwd));
+                sqlite3_bind_text(stmt, 1, sidBuf.ptr(), cast(int) sidBuf.len, SQLITE_TRANSIENT);
+                sqlite3_bind_text(stmt, 2, projBuf.ptr(), cast(int) projBuf.len, SQLITE_TRANSIENT);
+                sqlite3_step(stmt);
+                sqlite3_finalize(stmt);
+            }
+            sqlite3_close(db);
+        }
+    }
 
     // Check for project-scoped deferred messages (from QNTX)
     const(char)[] projectNews = null;
