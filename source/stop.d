@@ -53,7 +53,7 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
 
     // QNTX-scoped Stop controls
     {
-        import matcher : contains;
+        import matcher : contains, containsWord;
         auto lastMsg = extractLastAssistantMessage(input);
         if (lastMsg !is null && cwd !is null && contains(cwd, "/QNTX")) {
             if (contains(lastMsg, "make wasm")) {
@@ -68,7 +68,7 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                 writeStopResponse(`The developer is always running the latest version. Do not speculate about stale binaries.`);
                 return 0;
             }
-            if (contains(lastMsg, "port 877")) {
+            if (containsWord(lastMsg, "port 877")) {
                 attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"port-877-check-am-toml"}`);
                 sqlite3_close(db);
                 writeStopResponse(`You mentioned port 877. Check am.toml in the project root for the actual port configuration.`);

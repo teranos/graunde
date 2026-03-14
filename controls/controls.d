@@ -5,6 +5,9 @@ public import hooks;
 static if (__traits(compiles, { import qntx; }))
     import qntx;
 
+version (OSX)
+    import macos;
+
 static immutable universal = [
     control("no-skip-hooks", cmd("git"), omit("--no-verify"),
         msg("Git hooks must not be bypassed, ever..")),
@@ -58,8 +61,8 @@ static immutable universalPreCompact = [
 ];
 
 static immutable graunde = [
-    control("install-after-test", cmd("dub test"), bg(),
-        msg("If tests pass, run make install to update the live hook binary.")),
+    control("install-after-build", cmd("dub build"), bg(),
+        msg("Run make install to update the live hook binary.")),
 ];
 
 // TODO: stale binary correction on Stop — detect when installed binary doesn't match compiled version
@@ -75,6 +78,8 @@ static immutable allScopes = () {
         Scope("", "ask", checkpoints),
         Scope("/graunde", "allow", graunde),
     ];
+    static if (__traits(compiles, macos.commands))
+        base = base ~ [Scope("/graunde", "deny", macos.commands)];
     static if (__traits(compiles, qntx.commands))
         return base ~ [Scope("/QNTX", "allow", qntx.commands)];
     else

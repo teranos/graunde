@@ -91,6 +91,13 @@ void writeContextResponse(const(char)[] context, const(char)[] decision) {
     fputs("\n", stdout);
 }
 
+void writeDenyResponse(const(char)[] reason) {
+    fputs(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"`, stdout);
+    writeJsonString(reason);
+    fputs(`"}}`, stdout);
+    fputs("\n", stdout);
+}
+
 void writeResponse(const(char)[] command, const(char)[] context, const(char)[] decision,
     bool background = false, int timeout = 0)
 {
@@ -247,6 +254,10 @@ int run() {
                     if (db !is null) {
                         if (attestationExists(db, "GraundedPreToolUse", result.control.name, sessionId)) {
                             sqlite3_close(db);
+                            if (result.decision == "deny") {
+                                writeDenyResponse(result.control.msg.value);
+                                return 0;
+                            }
                             // Still emit decision (e.g. "allow") — just skip the message
                             writeResponse(command, "", result.decision,
                                 result.control.bg.value, result.control.tmo.value);
@@ -261,6 +272,10 @@ int run() {
                         graundedAttrs.put(`"}`);
                         attestEvent(db, "GraundedPreToolUse", cwd, sessionId, graundedAttrs.slice());
                         sqlite3_close(db);
+                    }
+                    if (result.decision == "deny") {
+                        writeDenyResponse(result.control.msg.value);
+                        return 0;
                     }
                     writeResponse(command, result.control.msg.value, result.decision,
                         result.control.bg.value, result.control.tmo.value);
