@@ -67,6 +67,12 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                 writeStopResponse(`The developer is always running the latest version. Do not speculate about stale binaries.`);
                 return 0;
             }
+            if (contains(lastMsg, "port 877")) {
+                attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"port-877-check-am-toml"}`);
+                sqlite3_close(db);
+                writeStopResponse(`You mentioned port 877. Check am.toml in the project root for the actual port configuration.`);
+                return 0;
+            }
         }
     }
 
@@ -79,6 +85,12 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                 attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"ego-death"}`);
                 sqlite3_close(db);
                 writeStopResponse(`You said "The most effective fix is" — according to whom? The user will go apeshit if you are pulling this out of your ass, be sure to ground it in verification or real facts.`);
+                return 0;
+            }
+            if (contains(lastMsg, "feeling is probably")) {
+                attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"ego-death"}`);
+                sqlite3_close(db);
+                writeStopResponse(`You said "feeling is probably" — do not attribute subjective impressions to the user. They observe and report facts. Restate based on what was actually measured or said.`);
                 return 0;
             }
             if (contains(lastMsg, "Nothing left to do")) {
@@ -133,6 +145,43 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                 sqlite3_close(db);
                 writeStopResponse(projDeferred.message);
                 return 0;
+            }
+        }
+    }
+
+    // Timing regression check — once per compaction window
+    {
+        import sqlite : attestationExists, sqlite3_prepare_v2, sqlite3_step, sqlite3_column_int64,
+                        sqlite3_finalize, sqlite3_stmt, SQLITE_OK, SQLITE_ROW;
+
+        if (!attestationExists(db, "GraundedStop", "timing-regression", sessionId)) {
+            enum timingSql = "SELECT AVG(duration_us) FROM (SELECT duration_us FROM timing ORDER BY id DESC LIMIT 20)\0";
+            sqlite3_stmt* stmt;
+            if (sqlite3_prepare_v2(db, timingSql.ptr, -1, &stmt, null) == SQLITE_OK) {
+                if (sqlite3_step(stmt) == SQLITE_ROW) {
+                    auto avgUs = sqlite3_column_int64(stmt, 0);
+                    enum thresholdUs = 100_000; // 100ms budget
+                    if (avgUs > thresholdUs) {
+                        sqlite3_finalize(stmt);
+                        auto avgMs = avgUs / 1000;
+                        __gshared ZBuf timingMsg;
+                        timingMsg.reset();
+                        timingMsg.put("graunde timing regression: average event takes ");
+                        // Write avgMs as decimal
+                        char[10] digits = 0;
+                        int dLen = 0;
+                        auto v = avgMs;
+                        if (v == 0) { digits[0] = '0'; dLen = 1; }
+                        else { while (v > 0) { digits[dLen++] = cast(char)('0' + v % 10); v /= 10; } }
+                        foreach (i; 0 .. dLen) timingMsg.putChar(digits[dLen - 1 - i]);
+                        timingMsg.put("ms, budget is 100ms. Check getBranch and db queries for optimization.");
+                        attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"timing-regression"}`);
+                        sqlite3_close(db);
+                        writeStopResponse(timingMsg.slice());
+                        return 0;
+                    }
+                }
+                sqlite3_finalize(stmt);
             }
         }
     }

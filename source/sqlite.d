@@ -1,7 +1,7 @@
 module sqlite;
 
 import matcher : indexOf, contains;
-import core.stdc.stdio : fread, FILE;
+import core.stdc.stdio : fread, fopen, fclose, FILE;
 import core.stdc.time : time, time_t, tm, gmtime;
 
 // --- sqlite3 C bindings (minimal) ---
@@ -117,6 +117,10 @@ sqlite3* openStandaloneDb() {
         return null;
     }
 
+    enum sessionProjectSchema = "CREATE TABLE IF NOT EXISTS session_project ("
+        ~ "session_id TEXT PRIMARY KEY, project TEXT NOT NULL)\0";
+    sqlite3_exec(db, sessionProjectSchema.ptr, null, null, null);
+
     return db;
 }
 
@@ -214,28 +218,32 @@ const(char)[] cwdTail(const(char)[] path) {
 // NOTE: cwd is passed into popen unescaped. Trusted — comes from Claude Code's hook payload.
 const(char)[] getBranch(const(char)[] cwd) {
     __gshared char[256] branchBuf = 0;
-    __gshared ZBuf cmdBuf;
+    __gshared ZBuf pathBuf;
 
-    cmdBuf.reset();
-    cmdBuf.put("git -C ");
-    cmdBuf.put(cwd);
-    cmdBuf.put(" branch --show-current");
+    // Read .git/HEAD directly — avoids ~46ms popen subprocess
+    pathBuf.reset();
+    pathBuf.put(cwd);
+    pathBuf.put("/.git/HEAD");
 
-    auto pipe = popen(cmdBuf.ptr(), "r");
-    if (pipe is null) return "unknown";
+    auto f = fopen(pathBuf.ptr(), "r");
+    if (f is null) return "unknown";
 
-    auto n = fread(&branchBuf[0], 1, branchBuf.length - 1, pipe);
-    pclose(pipe);
+    auto n = fread(&branchBuf[0], 1, branchBuf.length - 1, f);
+    fclose(f);
 
     if (n == 0) return "unknown";
 
-    // Strip trailing newline
-    size_t end = n;
-    while (end > 0 && (branchBuf[end - 1] == '\n' || branchBuf[end - 1] == '\r'))
-        end--;
+    // .git/HEAD contains "ref: refs/heads/<branch>\n"
+    enum prefix = "ref: refs/heads/";
+    if (n > prefix.length && branchBuf[0 .. prefix.length] == prefix) {
+        size_t end = n;
+        while (end > 0 && (branchBuf[end - 1] == '\n' || branchBuf[end - 1] == '\r'))
+            end--;
+        if (end > prefix.length)
+            return branchBuf[prefix.length .. end];
+    }
 
-    if (end == 0) return "unknown";
-    return branchBuf[0 .. end];
+    return "unknown";
 }
 
 
@@ -323,10 +331,41 @@ void attestEvent(
     __gshared ZBuf source;
     __gshared ZBuf idBuf;
 
-    // Build subject: "parent/repo:branch"
+    // Build subject: "parent/repo:branch" — e.g. "tmp3/QNTX:feat/weave-panel"
+    // Project part cached in session_project table to avoid cwd drift from cd.
     __gshared ZBuf subjectVal;
+    __gshared char[256] sessionProjectBuf = 0;
+    const(char)[] sessionProject = null;
+
+    {
+        enum lookupSql = "SELECT project FROM session_project WHERE session_id = ?1\0";
+        sqlite3_stmt* spStmt;
+        if (sqlite3_prepare_v2(db, lookupSql.ptr, -1, &spStmt, null) == SQLITE_OK) {
+            __gshared ZBuf sidBuf;
+            sidBuf.reset();
+            sidBuf.put(sessionId);
+            sqlite3_bind_text(spStmt, 1, sidBuf.ptr(), cast(int) sidBuf.len, SQLITE_TRANSIENT);
+            if (sqlite3_step(spStmt) == SQLITE_ROW) {
+                auto text = sqlite3_column_text(spStmt, 0);
+                if (text !is null) {
+                    size_t sLen = 0;
+                    while (text[sLen] != 0) sLen++;
+                    if (sLen > 0 && sLen < sessionProjectBuf.length) {
+                        foreach (i; 0 .. sLen) sessionProjectBuf[i] = (cast(const(char)*) text)[i];
+                        sessionProject = sessionProjectBuf[0 .. sLen];
+                    }
+                }
+            }
+            sqlite3_finalize(spStmt);
+        }
+    }
+
     subjectVal.reset();
-    subjectVal.put(cwdTail(cwd));
+    if (sessionProject !is null) {
+        subjectVal.put(sessionProject);
+    } else {
+        subjectVal.put(cwdTail(cwd));
+    }
     subjectVal.put(":");
     subjectVal.put(branch);
     jsonArray1(subjects, subjectVal.slice());

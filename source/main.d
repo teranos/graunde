@@ -30,6 +30,17 @@ import sqlite : popen, pclose;
 import core.stdc.stdlib : exit;
 import core.sys.posix.unistd : isatty;
 
+extern (C) {
+    struct timeval { long tv_sec; long tv_usec; }
+    int gettimeofday(timeval* tv, void* tz);
+}
+
+long usecNow() {
+    timeval tv;
+    gettimeofday(&tv, null);
+    return tv.tv_sec * 1_000_000 + tv.tv_usec;
+}
+
 // Extract PR number from "gh pr comment 39 ..." or "gh pr review 39 ..."
 const(char)[] extractPrNumber(const(char)[] cmd) {
     foreach (prefix; ["gh pr comment ", "gh pr review "]) {
@@ -122,12 +133,70 @@ void printVersion() {
         }
 }
 
+void printDuration(long t0) {
+    auto elapsed = usecNow() - t0;
+    auto ms = elapsed / 1000;
+    auto us = elapsed % 1000;
+    // Write "graunde: XXms" to stderr
+    char[32] buf = 0;
+    int pos = 0;
+    // ms part
+    if (ms == 0) { buf[pos++] = '0'; }
+    else {
+        char[10] digits = 0;
+        int dLen = 0;
+        auto v = ms;
+        while (v > 0) { digits[dLen++] = cast(char)('0' + v % 10); v /= 10; }
+        foreach (i; 0 .. dLen) buf[pos++] = digits[dLen - 1 - i];
+    }
+    buf[pos++] = '.';
+    // us part — zero-padded to 3 digits
+    buf[pos++] = cast(char)('0' + us / 100);
+    buf[pos++] = cast(char)('0' + (us / 10) % 10);
+    buf[pos++] = cast(char)('0' + us % 10);
+    buf[pos++] = 'm';
+    buf[pos++] = 's';
+    fputs("graunde: ", stderr);
+    fwrite(&buf[0], 1, pos, stderr);
+    fputs("\n", stderr);
+}
+
+void recordTiming(long elapsedUs) {
+    import sqlite : openDb, sqlite3_exec, sqlite3_prepare_v2, sqlite3_bind_int64,
+                    sqlite3_step, sqlite3_finalize, sqlite3_close, sqlite3_stmt, SQLITE_OK;
+
+    auto db = openDb();
+    if (db is null) return;
+
+    enum createSql = "CREATE TABLE IF NOT EXISTS timing (id INTEGER PRIMARY KEY, duration_us INTEGER NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)\0";
+    sqlite3_exec(db, createSql.ptr, null, null, null);
+
+    enum sql = "INSERT INTO timing (duration_us) VALUES (?1)\0";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) == SQLITE_OK) {
+        sqlite3_bind_int64(stmt, 1, elapsedUs);
+        sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+    }
+    sqlite3_close(db);
+}
+
 extern (C) int main() {
     if (isatty(0)) {
         printVersion();
         fputs(" — Ground Control for Claude Code\n", stderr);
         return 0;
     }
+
+    auto t0 = usecNow();
+    auto rc = run();
+    auto elapsed = usecNow() - t0;
+    printDuration(t0);
+    recordTiming(elapsed);
+    return rc;
+}
+
+int run() {
 
     auto input = readStdin();
     if (input is null) {
@@ -251,7 +320,7 @@ extern (C) int main() {
     if (event == HookEvent.SessionStart) {
         auto source = extractSource(input);
         import sessionstart : handleSessionStart;
-        return handleSessionStart(source, cwd);
+        return handleSessionStart(source, cwd, sessionId);
     }
 
     // PreCompact — re-inject context that would be lost to compaction
@@ -297,11 +366,30 @@ extern (C) int main() {
         return 0;
     }
 
-    // PostToolUse — check for CI deferral
+    // PostToolUse — controls + CI deferral
     if (event == HookEvent.PostToolUse) {
         auto detail = extractCommand(input);
         if (detail is null) detail = extractFilePath(input);
         if (detail is null) detail = eventName;
+
+        // Check PostToolUse controls
+        if (detail !is null) {
+            import controls : postToolUseScopes;
+            foreach (ref scope_; postToolUseScopes) {
+                if (scope_.path.length > 0 && (cwd is null || !contains(cwd, scope_.path)))
+                    continue;
+                foreach (ref c; scope_.controls) {
+                    if (c.cmd.value.length > 0 && hasSegment(detail, c.cmd.value) && c.msg.value.length > 0) {
+                        fputs(`{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"`, stdout);
+                        import parse : writeJsonString;
+                        writeJsonString(c.msg.value);
+                        fputs(`"}}`, stdout);
+                        fputs("\n", stdout);
+                        return 0;
+                    }
+                }
+            }
+        }
 
         // After git push — defer CI check
         if (detail !is null && hasSegment(detail, "git push")) {

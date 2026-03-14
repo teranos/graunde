@@ -47,6 +47,11 @@ static immutable checkpoints = [
         msg("After merge, checkout main and pull to sync local.")),
 ];
 
+static immutable postToolUse = [
+    control("tag-push-reminder", cmd("git tag"),
+        msg("Push the tag: git push origin <tag>")),
+];
+
 static immutable universalPreCompact = [
     control("branch-context", precompact(),
         msg("Current branch: "), cmd("git branch --show-current")),
@@ -81,6 +86,10 @@ static immutable fileScopes = () {
         return [Scope("/QNTX", "allow", qntx.files)];
     else
         return cast(immutable(Scope)[])[];
+}();
+
+static immutable postToolUseScopes = () {
+    return [Scope("", "allow", postToolUse)];
 }();
 
 static immutable preCompactScopes = () {

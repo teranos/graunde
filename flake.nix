@@ -37,7 +37,7 @@
                 -J. \
                 -L-L${pkgs.sqlite.out}/lib \
                 -L-lsqlite3 \
-                $(find source -name '*.d')
+                $(find source controls -name '*.d')
             '';
 
             installPhase = ''
