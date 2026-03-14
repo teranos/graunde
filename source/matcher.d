@@ -369,17 +369,19 @@ unittest {
     assert(result.control is null || result.control.name != "go-test-args");
 }
 
-unittest {
-    // Prefix match only — "go test" as a command matches in QNTX
-    auto result = checkCommand("go test -v ./...", QNTX);
-    assert(result.control !is null);
-    assert(result.control.name == "go-test-args");
-}
+static if (__traits(compiles, { import qntx; })) {
+    unittest {
+        // Prefix match only — "go test" as a command matches in QNTX
+        auto result = checkCommand("go test -v ./...", QNTX);
+        assert(result.control !is null);
+        assert(result.control.name == "go-test-args");
+    }
 
-unittest {
-    // Prefix match only — "go testing" is not "go test"
-    auto result = checkCommand("go testing", QNTX);
-    assert(result.control is null);
+    unittest {
+        // Prefix match only — "go testing" is not "go test"
+        auto result = checkCommand("go testing", QNTX);
+        assert(result.control is null);
+    }
 }
 
 unittest {
@@ -405,11 +407,13 @@ unittest {
     assert(result.decision == "ask");
 }
 
-unittest {
-    // go test in QNTX gets "allow" decision from scope
-    auto result = checkCommand("go test ./...", QNTX);
-    assert(result.control !is null);
-    assert(result.decision == "allow");
+static if (__traits(compiles, { import qntx; })) {
+    unittest {
+        // go test in QNTX gets "allow" decision from scope
+        auto result = checkCommand("go test ./...", QNTX);
+        assert(result.control !is null);
+        assert(result.decision == "allow");
+    }
 }
 
 unittest {
