@@ -5,6 +5,7 @@ import sqlite : openDb, attestEvent,
                 getBranch, sqlite3, sqlite3_close, ZBuf;
 import core.stdc.stdio : stdout, fputs;
 
+// Claude Code renders \n in reason as literal "\n", not as a line break.
 void writeStopResponse(const(char)[] reason) {
     fputs(`{"decision":"block","reason":"`, stdout);
     writeJsonString(reason);
