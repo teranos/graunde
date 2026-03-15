@@ -231,7 +231,11 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                         int tLen = 0;
                         { auto tv = thresholdMs; if (tv == 0) { tDigits[0] = '0'; tLen = 1; } else { while (tv > 0) { tDigits[tLen++] = cast(char)('0' + tv % 10); tv /= 10; } } }
                         foreach (i; 0 .. tLen) timingMsg.putChar(tDigits[tLen - 1 - i]);
-                        timingMsg.put("ms. Check getBranch and db queries for optimization.");
+                        enum VERSION = import(".version");
+                        timingMsg.put("ms (graunde ");
+                        foreach (vc; VERSION)
+                            if (vc != '\n' && vc != '\r') timingMsg.putChar(vc);
+                        timingMsg.put(").");
                         attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"timing-regression"}`);
                         sqlite3_close(db);
                         writeStopResponseAndNotify(timingMsg.slice());
