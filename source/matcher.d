@@ -207,6 +207,75 @@ Match checkCommand(const(char)[] command, const(char)[] cwd) {
     return Match(null, "", "");
 }
 
+struct MatchSet {
+    Match[8] matches;
+    size_t count;
+}
+
+// Returns all matching controls across all segments of a compound command.
+MatchSet checkAllCommands(const(char)[] command, const(char)[] cwd) {
+    MatchSet result;
+    size_t start = 0;
+    size_t i = 0;
+
+    while (i <= command.length) {
+        bool isSep = false;
+        size_t skip = 0;
+
+        if (i == command.length) {
+            isSep = true;
+        } else if (command[i] == '|' || command[i] == ';') {
+            isSep = true;
+            skip = 1;
+        } else if (i + 1 < command.length && command[i] == '&' && command[i + 1] == '&') {
+            isSep = true;
+            skip = 2;
+        }
+
+        if (isSep) {
+            auto segment = strip(command[start .. i]);
+            if (segment.length > 0) {
+                const(Control)* amendment = null;
+                const(Control)* fallback = null;
+                const(char)[] decision;
+
+                foreach (ref sc; allScopes) {
+                    if (sc.path.length > 0 && !contains(cwd, sc.path))
+                        continue;
+                    foreach (ref c; sc.controls) {
+                        if (commandMatch(segment, c.cmd.value)) {
+                            if (c.omit.value.length > 0 && !contains(segment, c.omit.value))
+                                continue;
+                            if (amendment is null && (c.arg.value.length > 0 || c.omit.value.length > 0))
+                                amendment = &c;
+                            if (fallback is null)
+                                fallback = &c;
+                            if (sc.decision == "ask")
+                                decision = "ask";
+                            else if (decision.length == 0)
+                                decision = sc.decision;
+                        }
+                    }
+                }
+
+                auto matched = amendment !is null ? amendment : fallback;
+                if (matched !is null && result.count < result.matches.length) {
+                    result.matches[result.count] = Match(matched, segment, decision);
+                    result.count++;
+                }
+            }
+            start = i + skip;
+            if (skip > 0) {
+                i += skip;
+                continue;
+            }
+        }
+        i++;
+    }
+
+    return result;
+}
+
 // Builds the amended command in a static buffer.
 // Inserts control.arg.value right after the matched cmd substring.
 Buf applyArg(const(Control)* c, const(char)[] segment) {
@@ -490,4 +559,12 @@ unittest {
     // non-git commands unaffected
     assert(commandMatch("go test ./...", "go test"));
     assert(!commandMatch("go test ./...", "git push"));
+}
+
+unittest {
+    // Compound command: git push && git checkout -b should match BOTH controls
+    auto results = checkAllCommands("git push origin main && git checkout -b feature-branch", OTHER);
+    assert(results.count == 2);
+    assert(results.matches[0].control.name == "git-push-pull-first");
+    assert(results.matches[1].control.name == "git-checkout-b");
 }

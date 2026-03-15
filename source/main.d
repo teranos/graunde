@@ -22,7 +22,7 @@ module main;
 //   updatedInput             — (PreToolUse) replaces tool input before execution
 //   additionalContext        — (UserPromptSubmit required, PostToolUse optional) injected into context
 
-import matcher : checkCommand, applyArg, applyOmit, checkFilePath, FileMatch, indexOf, contains, hasSegment, Buf;
+import matcher : checkCommand, checkAllCommands, MatchSet, applyArg, applyOmit, checkFilePath, FileMatch, indexOf, contains, hasSegment, Buf;
 import parse : extractCommand, extractCwd, extractSessionId, extractToolUseId, extractHookEventName, extractToolName, extractFilePath, extractSource, writeJsonString, fputs2;
 import controls : HookEvent;
 import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fprintf, fwrite, FILE;
@@ -242,64 +242,89 @@ int run() {
 
         if (command !is null) {
             // Bash — check controls
-            auto result = checkCommand(command, cwd);
+            auto results = checkAllCommands(command, cwd);
 
-            if (result.control !is null) {
-                // Msg-only control — no amendment, just decision + context
+            if (results.count > 0) {
+                import sqlite : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;
+                auto db = openDb();
 
-                if (result.control.arg.value.length == 0 && result.control.omit.value.length == 0) {
-                    // Once per session: skip if already fired
-                    import sqlite : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;
-                    auto db = openDb();
-                    if (db !is null) {
-                        if (attestationExists(db, "GraundedPreToolUse", result.control.name, sessionId)) {
-                            sqlite3_close(db);
-                            if (result.decision == "deny") {
-                                writeDenyResponse(result.control.msg.value);
-                                return 0;
+                const(char)[] finalDecision;
+                __gshared ZBuf allMessages;
+                allMessages.reset();
+                __gshared Buf finalCommand;
+                finalCommand = Buf.init;
+                finalCommand.put(command);
+                bool hasBg = false;
+                int maxTmo = 0;
+                bool hasDeny = false;
+
+                foreach (idx; 0 .. results.count) {
+                    auto m = results.matches[idx];
+                    auto c = m.control;
+
+                    // Decision: deny > ask > allow
+                    if (m.decision == "deny") { finalDecision = "deny"; hasDeny = true; }
+                    else if (m.decision == "ask" && finalDecision != "deny") finalDecision = "ask";
+                    else if (finalDecision.length == 0) finalDecision = m.decision;
+
+                    if (c.bg.value) hasBg = true;
+                    if (c.tmo.value > maxTmo) maxTmo = c.tmo.value;
+
+                    bool isMsgOnly = c.arg.value.length == 0 && c.omit.value.length == 0;
+
+                    if (isMsgOnly) {
+                        bool alreadyFired = db !is null &&
+                            attestationExists(db, "GraundedPreToolUse", c.name, sessionId);
+
+                        if (!alreadyFired) {
+                            if (allMessages.len > 0) allMessages.put(" | ");
+                            allMessages.put(c.msg.value);
+                            if (db !is null) {
+                                __gshared ZBuf graundedAttrs;
+                                graundedAttrs.reset();
+                                graundedAttrs.put(`{"control":"`);
+                                graundedAttrs.put(c.name);
+                                graundedAttrs.put(`","decision":"`);
+                                graundedAttrs.put(m.decision);
+                                graundedAttrs.put(`"}`);
+                                attestEvent(db, "GraundedPreToolUse", cwd, sessionId, graundedAttrs.slice());
                             }
-                            // Still emit decision (e.g. "allow") — just skip the message
-                            writeResponse(command, "", result.decision,
-                                result.control.bg.value, result.control.tmo.value);
-                            return 0;
                         }
-                        __gshared ZBuf graundedAttrs;
-                        graundedAttrs.reset();
-                        graundedAttrs.put(`{"control":"`);
-                        graundedAttrs.put(result.control.name);
-                        graundedAttrs.put(`","decision":"`);
-                        graundedAttrs.put(result.decision);
-                        graundedAttrs.put(`"}`);
-                        attestEvent(db, "GraundedPreToolUse", cwd, sessionId, graundedAttrs.slice());
-                        sqlite3_close(db);
+                    } else {
+                        Buf amended;
+                        if (c.omit.value.length > 0)
+                            amended = applyOmit(c, m.segment);
+                        else
+                            amended = applyArg(c, m.segment);
+
+                        if (amended.slice() != m.segment) {
+                            auto current = finalCommand.slice();
+                            auto segIdx = indexOf(current, m.segment);
+                            if (segIdx >= 0) {
+                                Buf updated;
+                                updated.put(current[0 .. cast(size_t) segIdx]);
+                                updated.put(amended.slice());
+                                updated.put(current[cast(size_t) segIdx + m.segment.length .. $]);
+                                finalCommand = updated;
+                            }
+                        }
+
+                        if (c.msg.value.length > 0) {
+                            if (allMessages.len > 0) allMessages.put(" | ");
+                            allMessages.put(c.msg.value);
+                        }
                     }
-                    if (result.decision == "deny") {
-                        writeDenyResponse(result.control.msg.value);
-                        return 0;
-                    }
-                    writeResponse(command, result.control.msg.value, result.decision,
-                        result.control.bg.value, result.control.tmo.value);
+                }
+
+                if (db !is null) sqlite3_close(db);
+
+                if (hasDeny) {
+                    writeDenyResponse(allMessages.slice());
                     return 0;
                 }
 
-                Buf amended;
-                if (result.control.omit.value.length > 0)
-                    amended = applyOmit(result.control, result.segment);
-                else
-                    amended = applyArg(result.control, result.segment);
-
-                if (amended.slice() != result.segment) {
-                    auto segIdx = indexOf(command, result.segment);
-                    if (segIdx >= 0) {
-                        Buf full;
-                        full.put(command[0 .. cast(size_t) segIdx]);
-                        full.put(amended.slice());
-                        full.put(command[cast(size_t) segIdx + result.segment.length .. $]);
-                        writeResponse(full.slice(), result.control.msg.value, result.decision,
-                            result.control.bg.value, result.control.tmo.value);
-                        return 0;
-                    }
-                }
+                writeResponse(finalCommand.slice(), allMessages.slice(), finalDecision,
+                    hasBg, maxTmo);
                 return 0;
             }
 

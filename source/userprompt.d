@@ -19,6 +19,7 @@ enum GRAUNDE = `Graunde — a hook that fires on every hook event, tracks what h
 enum AX = `AX — attestation query, a natural-language-like syntax (Tim is tester of QNTX by attestor)`;
 enum QNTX = `QNTX — Continuous Intelligence. Domain-agnostic knowledge system built on verifiable attestations (who said what, when, in what context). Core: Attestation Type System (ATS). Query with AX. Graunde shares its node db; https://github.com/teranos/QNTX`;
 enum TIMER = `You can set a timer on macOS. Run in background: sleep <seconds> && say "time" &`;
+enum ADR = `ADRs are in docs/adr/ in the QNTX repo`;
 
 int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
     auto prompt = extractPrompt(input);
@@ -30,8 +31,9 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
     bool q = (contains(prompt, "qntx") || contains(prompt, "QNTX")
           || contains(prompt, "Qntx")) && !contains(cwd, "/QNTX");
     bool t = contains(prompt, "timer for ") || contains(prompt, "Timer for ");
+    bool d = contains(prompt, "ADR") || contains(prompt, "adr");
 
-    if (!g && !a && !q && !t) return 0;
+    if (!g && !a && !q && !t && !d) return 0;
 
     // Check if already reminded in this session
     auto db = openDb();
@@ -44,9 +46,11 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
             q = false;
         if (t && attestationExists(db, "GraundedUserPromptSubmit", "timer-reminder", sessionId))
             t = false;
+        if (d && attestationExists(db, "GraundedUserPromptSubmit", "adr-reminder", sessionId))
+            d = false;
     }
 
-    if (!g && !a && !q && !t) {
+    if (!g && !a && !q && !t && !d) {
         if (db !is null) sqlite3_close(db);
         return 0;
     }
@@ -59,8 +63,10 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
     if (a) ctx.put(AX);
     if (a && (q || t)) ctx.put(" | ");
     if (q) ctx.put(QNTX);
-    if (q && t) ctx.put(" | ");
+    if (q && (t || d)) ctx.put(" | ");
     if (t) ctx.put(TIMER);
+    if (t && d) ctx.put(" | ");
+    if (d) ctx.put(ADR);
 
     fputs(`{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"`, stdout);
     fwrite(&ctx.data[0], 1, ctx.len, stdout);
@@ -77,6 +83,8 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
             attestEvent(db, "GraundedUserPromptSubmit", cwd, sessionId, `{"control":"qntx-reminder"}`);
         if (t)
             attestEvent(db, "GraundedUserPromptSubmit", cwd, sessionId, `{"control":"timer-reminder"}`);
+        if (d)
+            attestEvent(db, "GraundedUserPromptSubmit", cwd, sessionId, `{"control":"adr-reminder"}`);
         sqlite3_close(db);
     }
 
