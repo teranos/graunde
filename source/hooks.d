@@ -74,10 +74,18 @@ struct UserPrompt {
     string value;
 }
 
+alias CheckFn = bool function(const(char)[] cwd);
+
+struct SessionStartTrigger {
+    CheckFn check; // null = always fire
+}
+
 Trigger stop() { return Trigger(""); }
 Trigger stop(string s) { return Trigger(s); }
 Trigger precompact() { return Trigger("PreCompact"); }
 UserPrompt userprompt(string s) { return UserPrompt(s); }
+SessionStartTrigger sessionstart() { return SessionStartTrigger(null); }
+SessionStartTrigger sessionstart(CheckFn fn) { return SessionStartTrigger(fn); }
 FilePath filepath(string s) { return FilePath(s); }
 Msg msg(string s) { return Msg(s); }
 Bg bg() { return Bg(true); }
@@ -91,6 +99,7 @@ struct Control {
     Trigger trigger;
     FilePath filepath;
     UserPrompt userprompt;
+    SessionStartTrigger sessionstart;
     Msg msg;
     Bg bg;
     Tmo tmo;
@@ -131,6 +140,10 @@ Control control(string name, FilePath fp, Msg m) {
 
 Control control(string name, UserPrompt up, Msg m) {
     Control ctrl; ctrl.name = name; ctrl.userprompt = up; ctrl.msg = m; return ctrl;
+}
+
+Control control(string name, SessionStartTrigger ss, Msg m) {
+    Control ctrl; ctrl.name = name; ctrl.sessionstart = ss; ctrl.msg = m; return ctrl;
 }
 
 // Groups controls by scope and decision.
