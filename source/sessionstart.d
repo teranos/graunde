@@ -166,6 +166,14 @@ void attestTypes() {
     sqlite3_close(db);
 }
 
+extern (C) int access(const(char)* path, int mode);
+
+// Check if /usr/local/bin/graunde exists, which would shadow ~/.local/bin/graunde.
+bool binaryShadowed() {
+    enum F_OK = 0;
+    return access("/usr/local/bin/graunde\0".ptr, F_OK) == 0;
+}
+
 // TODO: extract and attest `model` field — track which model worked on what
 // TODO: extract `agent_type` field — adjust controls for agent vs interactive sessions
 int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] sessionId) {
@@ -216,14 +224,17 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
 
     bool stale = isStartup && controlsAreStale(cwd);
     const(char)[] newerTag = isStartup ? checkTagStaleness() : null;
+    bool shadowed = isStartup && binaryShadowed();
 
-    if (isStartup || projectNews !is null || stale || newerTag !is null) {
+    if (isStartup || projectNews !is null || stale || newerTag !is null || shadowed) {
         import parse : writeJsonString;
         fputs(`{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"`, stdout);
         if (isStartup)
             fputs("arch: " ~ ARCH, stdout);
         if (stale)
             fputs(" | graunde binary is out of date with source — recompile with dub test && make install", stdout);
+        if (shadowed)
+            fputs(" | /usr/local/bin/graunde exists and shadows ~/.local/bin/graunde — remove it with: rm /usr/local/bin/graunde", stdout);
         if (newerTag !is null) {
             fputs(" | graunde ", stdout);
             fwrite(newerTag.ptr, 1, newerTag.length, stdout);
