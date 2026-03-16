@@ -1,7 +1,7 @@
 module hooks;
 
 enum HookEvent {
-    SessionStart,       // arch context
+    SessionStart,       // scoped controls via sessionstart(), optional check functions, arch context
     UserPromptSubmit,   // scoped keyword controls via userprompt(), case-insensitive matching
     PreToolUse,         // command amendment, file-path controls, scoped decisions
                         // TODO: updatedInput for non-Bash tools (file_path, pattern, offset, etc.)
