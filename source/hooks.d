@@ -134,9 +134,20 @@ Control control(string name, UserPrompt up, Msg m) {
 
 // Groups controls by scope and decision.
 // Empty path = fires everywhere. Non-empty = cwd must contain the path.
+// "!" prefix inverts: "!/QNTX" means cwd must NOT contain "/QNTX".
 // Decision: "allow" auto-approves, "ask" shows the permission prompt.
 struct Scope {
     string path;
     string decision;
     const(Control)[] controls;
+}
+
+bool scopeMatches(const(char)[] scopePath, const(char)[] cwd) {
+    if (scopePath.length == 0) return true;
+    if (scopePath[0] == '!') {
+        import matcher : contains;
+        return !contains(cwd, scopePath[1 .. $]);
+    }
+    import matcher : contains;
+    return contains(cwd, scopePath);
 }

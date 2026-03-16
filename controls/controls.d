@@ -66,16 +66,22 @@ static immutable graunde = [
 ];
 
 static immutable userPromptControls = [
-    control("graunde-reminder", userprompt("graunde"),
-        msg("Graunde — a hook that fires on every hook event, tracks what happened in this session. Can rewrite PreToolUse hooks on the fly, nudges Claude Code into the right direction; https://github.com/teranos/graunde/tree/main")),
     control("ax-reminder", userprompt("ax"),
         msg("AX — attestation query, a natural-language-like syntax (Tim is tester of QNTX by attestor)")),
-    control("qntx-reminder", userprompt("qntx"),
-        msg("QNTX — Continuous Intelligence. Domain-agnostic knowledge system built on verifiable attestations (who said what, when, in what context). Core: Attestation Type System (ATS). Query with AX. Graunde shares its node db; https://github.com/teranos/QNTX")),
     control("timer-reminder", userprompt("timer for"),
         msg("You can set a timer on macOS. Run in background: sleep <seconds> && say \"time\" &")),
     control("adr-reminder", userprompt("ADR"),
         msg("ADRs are in docs/adr/ in the QNTX repo")),
+];
+
+static immutable graundeExcludedPromptControls = [
+    control("graunde-reminder", userprompt("graunde"),
+        msg("Graunde — a hook that fires on every hook event, tracks what happened in this session. Can rewrite PreToolUse hooks on the fly, nudges Claude Code into the right direction; https://github.com/teranos/graunde/tree/main")),
+];
+
+static immutable qntxExcludedPromptControls = [
+    control("qntx-reminder", userprompt("qntx"),
+        msg("QNTX — Continuous Intelligence. Domain-agnostic knowledge system built on verifiable attestations (who said what, when, in what context). Core: Attestation Type System (ATS). Query with AX. Graunde shares its node db; https://github.com/teranos/QNTX")),
 ];
 
 // TODO: stale binary correction on Stop — detect when installed binary doesn't match compiled version
@@ -106,7 +112,11 @@ static immutable fileScopes = () {
 }();
 
 static immutable userPromptScopes = () {
-    return [Scope("", "allow", userPromptControls)];
+    return [
+        Scope("", "allow", userPromptControls),
+        Scope("!/graunde", "allow", graundeExcludedPromptControls),
+        Scope("!/QNTX", "allow", qntxExcludedPromptControls),
+    ];
 }();
 
 static immutable postToolUseScopes = () {

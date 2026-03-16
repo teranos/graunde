@@ -1,6 +1,7 @@
 module matcher;
 
 import controls;
+import hooks : scopeMatches;
 
 struct Match {
     const(Control)* control;
@@ -183,7 +184,7 @@ Match checkCommand(const(char)[] command, const(char)[] cwd) {
                 const(char)[] decision;
 
                 foreach (ref sc; allScopes) {
-                    if (sc.path.length > 0 && !contains(cwd, sc.path))
+                    if (!scopeMatches(sc.path, cwd))
                         continue;
                     foreach (ref c; sc.controls) {
                         if (commandMatch(segment, c.cmd.value)) {
@@ -257,7 +258,7 @@ MatchSet checkAllCommands(const(char)[] command, const(char)[] cwd) {
                 const(char)[] decision;
 
                 foreach (ref sc; allScopes) {
-                    if (sc.path.length > 0 && !contains(cwd, sc.path))
+                    if (!scopeMatches(sc.path, cwd))
                         continue;
                     foreach (ref c; sc.controls) {
                         if (commandMatch(segment, c.cmd.value)) {
@@ -358,7 +359,7 @@ FileMatch checkFilePath(const(char)[] filePath, const(char)[] cwd) {
     const(char)[] firstName;
 
     foreach (ref sc; fileScopes) {
-        if (sc.path.length > 0 && !contains(cwd, sc.path))
+        if (!scopeMatches(sc.path, cwd))
             continue;
         foreach (ref c; sc.controls) {
             if (c.filepath.value.length > 0 && contains(filePath, c.filepath.value)) {

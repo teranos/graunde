@@ -6,6 +6,7 @@ module userprompt;
 import parse : extractJsonString;
 import matcher : containsCI;
 import controls : userPromptScopes;
+import hooks : scopeMatches;
 import sqlite : ZBuf, openDb, attestationExists, attestEvent, sqlite3_close;
 import core.stdc.stdio : stdout, fputs, fwrite;
 
@@ -25,7 +26,7 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
     bool any = false;
 
     foreach (ref sc; userPromptScopes) {
-        if (sc.path.length > 0 && !containsCI(cwd, sc.path))
+        if (!scopeMatches(sc.path, cwd))
             continue;
         foreach (ref c; sc.controls) {
             if (c.userprompt.value.length == 0) continue;
