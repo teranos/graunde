@@ -110,50 +110,6 @@ static immutable qntxStopControls = [
         msg("You mentioned a default port. Check am.toml in the project root for the actual port configuration.")),
 ];
 
-// --- SessionStart check functions ---
-
-extern (C) int access(const(char)* path, int mode);
-import core.stdc.stdio : FILE, fopen, fread, fclose;
-
-bool binaryShadowed(const(char)[] cwd) {
-    enum F_OK = 0;
-    return access("/usr/local/bin/graunde\0".ptr, F_OK) == 0;
-}
-
-uint fnv1a(const(char)[] data) {
-    uint h = 2166136261;
-    foreach (b; data) { h ^= b; h *= 16777619; }
-    return h;
-}
-
-enum CONTROLS_HASH = fnv1a(import("controls/controls.d") ~ import("source/hooks.d"));
-
-bool controlsAreStale(const(char)[] cwd) {
-    if (cwd is null || cwd.length == 0) return false;
-
-    __gshared char[4096] pathBuf;
-    __gshared char[131072] concat;
-    size_t total = 0;
-
-    static foreach (suffix; ["/controls/controls.d", "/source/hooks.d"]) {{
-        if (cwd.length + suffix.length + 1 > pathBuf.length) return false;
-        foreach (j, c; cwd) pathBuf[j] = c;
-        foreach (j, c; suffix) pathBuf[cwd.length + j] = c;
-        pathBuf[cwd.length + suffix.length] = 0;
-
-        auto f = fopen(&pathBuf[0], "r");
-        if (f is null) return false;
-        auto n = fread(&concat[total], 1, concat.length - total, f);
-        fclose(f);
-        if (n == 0) return false;
-        total += n;
-    }}
-
-    return fnv1a(concat[0 .. total]) != CONTROLS_HASH;
-}
-
-// --- SessionStart controls ---
-
 static immutable sessionStartControls = [
     control("stale-binary-shadow", sessionstart(&binaryShadowed),
         msg("/usr/local/bin/graunde exists and shadows ~/.local/bin/graunde — remove it with: rm /usr/local/bin/graunde")),
@@ -223,3 +179,45 @@ static immutable preCompactScopes = () {
     else
         return base;
 }();
+
+// --- Check functions for sessionstart() controls ---
+
+extern (C) int access(const(char)* path, int mode);
+import core.stdc.stdio : FILE, fopen, fread, fclose;
+
+bool binaryShadowed(const(char)[] cwd) {
+    enum F_OK = 0;
+    return access("/usr/local/bin/graunde\0".ptr, F_OK) == 0;
+}
+
+uint fnv1a(const(char)[] data) {
+    uint h = 2166136261;
+    foreach (b; data) { h ^= b; h *= 16777619; }
+    return h;
+}
+
+enum CONTROLS_HASH = fnv1a(import("controls/controls.d") ~ import("source/hooks.d"));
+
+bool controlsAreStale(const(char)[] cwd) {
+    if (cwd is null || cwd.length == 0) return false;
+
+    __gshared char[4096] pathBuf;
+    __gshared char[131072] concat;
+    size_t total = 0;
+
+    static foreach (suffix; ["/controls/controls.d", "/source/hooks.d"]) {{
+        if (cwd.length + suffix.length + 1 > pathBuf.length) return false;
+        foreach (j, c; cwd) pathBuf[j] = c;
+        foreach (j, c; suffix) pathBuf[cwd.length + j] = c;
+        pathBuf[cwd.length + suffix.length] = 0;
+
+        auto f = fopen(&pathBuf[0], "r");
+        if (f is null) return false;
+        auto n = fread(&concat[total], 1, concat.length - total, f);
+        fclose(f);
+        if (n == 0) return false;
+        total += n;
+    }}
+
+    return fnv1a(concat[0 .. total]) != CONTROLS_HASH;
+}
