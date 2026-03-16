@@ -13,45 +13,6 @@ else enum ARCH = "unknown";
 
 enum SESSION_CONTEXT = `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"arch: ` ~ ARCH ~ `"}}` ~ "\n";
 
-// FNV-1a hash — works in both CTFE and runtime
-uint fnv1a(const(char)[] data) {
-    uint h = 2166136261;
-    foreach (b; data) {
-        h ^= b;
-        h *= 16777619;
-    }
-    return h;
-}
-
-// Compile-time hash of controls source
-enum CONTROLS_HASH = fnv1a(import("controls/controls.d") ~ import("source/hooks.d"));
-
-
-// Check if controls source has changed since compilation.
-// Hashes controls.d and hooks.d from disk, compares to compile-time hash.
-bool controlsAreStale(const(char)[] cwd) {
-    if (cwd is null || cwd.length == 0) return false;
-
-    __gshared char[4096] pathBuf;
-    __gshared char[131072] concat;
-    size_t total = 0;
-
-    static foreach (suffix; ["/source/controls.d", "/source/hooks.d"]) {{
-        if (cwd.length + suffix.length + 1 > pathBuf.length) return false;
-        foreach (j, c; cwd) pathBuf[j] = c;
-        foreach (j, c; suffix) pathBuf[cwd.length + j] = c;
-        pathBuf[cwd.length + suffix.length] = 0;
-
-        auto f = fopen(&pathBuf[0], "r");
-        if (f is null) return false;
-        auto n = fread(&concat[total], 1, concat.length - total, f);
-        fclose(f);
-        if (n == 0) return false;
-        total += n;
-    }}
-
-    return fnv1a(concat[0 .. total]) != CONTROLS_HASH;
-}
 
 enum VERSION = import(".version");
 
@@ -166,14 +127,6 @@ void attestTypes() {
     sqlite3_close(db);
 }
 
-extern (C) int access(const(char)* path, int mode);
-
-// Check if /usr/local/bin/graunde exists, which would shadow ~/.local/bin/graunde.
-bool binaryShadowed() {
-    enum F_OK = 0;
-    return access("/usr/local/bin/graunde\0".ptr, F_OK) == 0;
-}
-
 // TODO: extract and attest `model` field — track which model worked on what
 // TODO: extract `agent_type` field — adjust controls for agent vs interactive sessions
 int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] sessionId) {
@@ -222,30 +175,56 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
 
     bool isStartup = source is null || contains(source, "startup") || contains(source, "clear");
 
-    bool stale = isStartup && controlsAreStale(cwd);
     const(char)[] newerTag = isStartup ? checkTagStaleness() : null;
-    bool shadowed = isStartup && binaryShadowed();
 
-    if (isStartup || projectNews !is null || stale || newerTag !is null || shadowed) {
-        import parse : writeJsonString;
-        fputs(`{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"`, stdout);
-        if (isStartup)
-            fputs("arch: " ~ ARCH, stdout);
-        if (stale)
-            fputs(" | graunde binary is out of date with source — recompile with dub test && make install", stdout);
-        if (shadowed)
-            fputs(" | /usr/local/bin/graunde exists and shadows ~/.local/bin/graunde — remove it with: rm /usr/local/bin/graunde", stdout);
-        if (newerTag !is null) {
-            fputs(" | graunde ", stdout);
-            fwrite(newerTag.ptr, 1, newerTag.length, stdout);
-            fputs(" is available at https://github.com/teranos/graunde/releases/latest", stdout);
+    // Iterate sessionstart controls
+    import controls : sessionStartScopes;
+    import hooks : scopeMatches;
+    import sqlite : ZBuf;
+
+    __gshared ZBuf ctx;
+    ctx.reset();
+    bool any = false;
+
+    if (isStartup) {
+        ctx.put("arch: " ~ ARCH);
+        any = true;
+
+        foreach (ref sc; sessionStartScopes) {
+            if (!scopeMatches(sc.path, cwd))
+                continue;
+            foreach (ref c; sc.controls) {
+                if (c.sessionstart.check !is null && !c.sessionstart.check(cwd))
+                    continue;
+                if (any) ctx.put(" | ");
+                ctx.put(c.msg.value);
+                any = true;
+            }
         }
-        if (isStartup && cwd !is null && contains(cwd, "/QNTX"))
-            fputs(" | am.toml in the project root has the db path and node configuration. Check it before assuming database locations.", stdout);
-        if (isStartup && projectNews !is null)
-            fputs(" | ", stdout);
-        if (projectNews !is null)
-            writeJsonString(projectNews);
+    }
+
+    if (newerTag !is null) {
+        if (any) ctx.put(" | ");
+        ctx.put("graunde ");
+        ctx.put(newerTag);
+        ctx.put(" is available at https://github.com/teranos/graunde/releases/latest");
+        any = true;
+    }
+
+    if (projectNews !is null) {
+        import parse : writeJsonString;
+        if (any) ctx.put(" | ");
+        // projectNews needs JSON escaping — write directly
+        fputs(`{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"`, stdout);
+        fwrite(&ctx.data[0], 1, ctx.len, stdout);
+        writeJsonString(projectNews);
+        fputs(`"}}` ~ "\n", stdout);
+        return 0;
+    }
+
+    if (any) {
+        fputs(`{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"`, stdout);
+        fwrite(&ctx.data[0], 1, ctx.len, stdout);
         fputs(`"}}` ~ "\n", stdout);
         return 0;
     }

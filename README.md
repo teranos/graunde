@@ -37,6 +37,13 @@ control("adr-reminder", userprompt("ADR"),
 ```
 Claude receives: *"ADRs are in docs/adr/ — check existing decisions before proposing new ones."*
 
+A session starts in a project with local configuration:
+```d
+control("config-reminder", sessionstart(),
+    msg("Config is in config.toml — check it before assuming defaults.")),
+```
+Claude receives: *"Config is in config.toml — check it before assuming defaults."*
+
 ## Install
 
 ```
