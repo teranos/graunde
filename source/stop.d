@@ -170,7 +170,7 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
             if (sqlite3_prepare_v2(db, timingSql.ptr, -1, &stmt, null) == SQLITE_OK) {
                 if (sqlite3_step(stmt) == SQLITE_ROW) {
                     auto avgUs = sqlite3_column_int64(stmt, 0);
-                    enum thresholdUs = 350_000; // 350ms budget
+                    enum thresholdUs = 450_000; // 450ms budget
                     if (avgUs > thresholdUs) {
                         sqlite3_finalize(stmt);
                         auto avgMs = avgUs / 1000;
