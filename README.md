@@ -37,6 +37,13 @@ control("adr-reminder", userprompt("ADR"),
 ```
 Claude receives: *"ADRs are in docs/adr/ — check existing decisions before proposing new ones."*
 
+A session starts in a project with local configuration:
+```d
+control("am-toml-reminder", sessionstart(),
+    msg("am.toml in the project root has the db path and node configuration.")),
+```
+Claude receives: *"am.toml in the project root has the db path and node configuration."*
+
 ## Install
 
 ```
