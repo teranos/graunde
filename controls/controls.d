@@ -43,9 +43,9 @@ static immutable checkpoints = [
     control("git-tag-semver", cmd("git tag"),
         msg("Check the latest tag first and ensure the new version follows semver")),
     control("pr-create", cmd("gh pr create"),
-        msg("PR creation requires manual approval")),
+        msg("PR creation requires manual approval. Keep the description high signal — you can refine it later with gh pr edit.")),
     control("pr-edit-ref-reminder", cmd("gh pr edit"),
-        msg("Reference any docs edited or created in this PR")),
+        msg("Reference any docs edited or created in this PR. Do not describe implementation details — the diff speaks for itself. Focus on why, not what.")),
     control("git-checkout-b", cmd("git checkout -b"),
         msg("Check main for unpushed commits and push them first. Update documentation to describe intended behavior. Ask critical design questions. Then open a PR.")),
     control("pr-merge-checkout-main", cmd("gh pr merge"),
@@ -53,6 +53,8 @@ static immutable checkpoints = [
 ];
 
 static immutable postToolUse = [
+    control("commit-push-reminder", cmd("git commit"),
+        msg("A push typically follows.")),
     control("tag-push-reminder", cmd("git tag"),
         msg("Push the tag: git push origin <tag>")),
 ];
