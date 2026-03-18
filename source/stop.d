@@ -201,7 +201,7 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                         auto budgetMs = b.thresholdUs / 1000;
                         __gshared ZBuf timingMsg;
                         timingMsg.reset();
-                        timingMsg.put("graunde timing regression: ");
+                        timingMsg.put("fyi: graunde timing regression: ");
                         timingMsg.put(b.event);
                         timingMsg.put(" averages ");
                         putInt(timingMsg, avgMs);
