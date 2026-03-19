@@ -4,7 +4,7 @@ module userprompt;
 // TODO: use permission_mode to adjust behavior (e.g. stricter in plan mode)
 
 import parse : extractJsonString;
-import matcher : containsCI;
+import matcher : contains;
 import controls : userPromptScopes;
 import hooks : scopeMatches;
 import sqlite : ZBuf, openDb, attestationExists, attestEvent, sqlite3_close;
@@ -30,7 +30,7 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
             continue;
         foreach (ref c; sc.controls) {
             if (c.userprompt.value.length == 0) continue;
-            if (!containsCI(prompt, c.userprompt.value)) continue;
+            if (!contains(prompt, c.userprompt.value)) continue;
 
             // Once per session
             if (db !is null && attestationExists(db, "GraundedUserPromptSubmit", c.name, sessionId))

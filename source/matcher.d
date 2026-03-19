@@ -28,20 +28,6 @@ bool contains(const(char)[] haystack, const(char)[] needle) {
     if (needle.length == 0) return true;
     if (needle.length > haystack.length) return false;
     foreach (i; 0 .. haystack.length - needle.length + 1) {
-        if (haystack[i .. i + needle.length] == needle) {
-            auto after = i + needle.length;
-            if (after < haystack.length && haystack[after] >= '0' && haystack[after] <= '9')
-                continue;
-            return true;
-        }
-    }
-    return false;
-}
-
-bool containsCI(const(char)[] haystack, const(char)[] needle) {
-    if (needle.length == 0) return true;
-    if (needle.length > haystack.length) return false;
-    foreach (i; 0 .. haystack.length - needle.length + 1) {
         bool match = true;
         foreach (j; 0 .. needle.length) {
             char a = haystack[i + j];
@@ -50,7 +36,12 @@ bool containsCI(const(char)[] haystack, const(char)[] needle) {
             if (b >= 'A' && b <= 'Z') b += 32;
             if (a != b) { match = false; break; }
         }
-        if (match) return true;
+        if (match) {
+            auto after = i + needle.length;
+            if (after < haystack.length && haystack[after] >= '0' && haystack[after] <= '9')
+                continue;
+            return true;
+        }
     }
     return false;
 }
