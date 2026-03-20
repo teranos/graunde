@@ -85,7 +85,7 @@ struct Defer {
     int delaySec;         // fixed delay (used when delayFn is null)
     DelayFn delayFn;      // dynamic delay computation (null = use delaySec)
     DeliverFn deliverFn;  // runs at delivery time, output becomes the message (null = deliver msg as-is)
-    string msgPrefix;     // prepended to deliverFn output, or used as full message if deliverFn is null
+    string msg;           // deferred message (full message if no deliverFn, ignored if deliverFn set)
 }
 
 
@@ -115,11 +115,11 @@ FilePath filepath(string s) { return FilePath(s); }
 Msg msg(string s) { return Msg(s); }
 Bg bg() { return Bg(true); }
 Tmo tmo(int ms) { return Tmo(ms); }
-Defer defer(int sec, string msgPrefix) {
-    return Defer(sec, null, null, msgPrefix);
+Defer defer(int sec, string msg) {
+    return Defer(sec, null, null, msg);
 }
-Defer defer(DelayFn fn, DeliverFn deliver, string msgPrefix) {
-    return Defer(0, fn, deliver, msgPrefix);
+Defer defer(DelayFn fn, DeliverFn deliver, string msg) {
+    return Defer(0, fn, deliver, msg);
 }
 
 struct Control {

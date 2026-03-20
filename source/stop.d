@@ -22,13 +22,11 @@ const(char)[] deliverDeferred(DeferredMsg deferred, const(char)[] cwd) {
     import hooks : scopeMatches;
 
     DeliverFn deliverFn = null;
-    const(char)[] msgPrefix = null;
     foreach (ref scope_; postToolUseDeferredScopes) {
         if (!scopeMatches(scope_.path, cwd)) continue;
         foreach (ref c; scope_.controls) {
             if (c.name == deferred.name) {
                 deliverFn = c.defer.deliverFn;
-                msgPrefix = c.defer.msgPrefix;
                 break;
             }
         }
@@ -37,11 +35,7 @@ const(char)[] deliverDeferred(DeferredMsg deferred, const(char)[] cwd) {
     if (deliverFn !is null) {
         auto result = deliverFn(cwd);
         if (result is null) return null;
-        __gshared ZBuf deliverBuf;
-        deliverBuf.reset();
-        if (msgPrefix.length > 0) deliverBuf.put(msgPrefix);
-        deliverBuf.put(result);
-        return deliverBuf.slice();
+        return result;
     }
 
     return deferred.message;

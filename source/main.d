@@ -488,7 +488,7 @@ int run(ref const(char)[] outEventName) {
                     auto delay = c.defer.delayFn !is null
                         ? c.defer.delayFn(cwd)
                         : c.defer.delaySec;
-                    writeDeferredMessage(db, c.name, cwd, sessionId, c.defer.msgPrefix, delay);
+                    writeDeferredMessage(db, c.name, cwd, sessionId, c.defer.msg, delay);
                     sqlite3_close(db);
                 }
             }

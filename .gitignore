@@ -20,14 +20,17 @@ graunde-test-application
 
 # Generated
 .version
+.ctfe/*
+!.ctfe/.gitkeep
 result
 
 # Debug captures
 captured_hook_payload.json
 
-# User controls — controls/controls.d is tracked, everything else is local
+# User controls — controls.d and pbt are tracked, everything else is local
 controls/*
 !controls/controls.d
+!controls/*.pbt
 
 # DUB
 .dub

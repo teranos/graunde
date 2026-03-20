@@ -3,10 +3,11 @@
     "description": "Workflow enforcement for Claude Code",
     "targetType": "executable",
     "targetName": "graunde",
-    "sourcePaths": ["source", "controls"],
+    "sourcePaths": ["source"],
     "stringImportPaths": ["."],
     "dflags": ["-betterC"],
     "libs": ["sqlite3"],
     "lflags": ["-L/usr/local/opt/sqlite/lib"],
-    "preBuildCommands": ["git describe --tags --always > .version"]
+    "extraDependencyFiles": [".ctfe/sand"],
+    "preBuildCommands": ["git describe --tags --always > .version || true", "cat controls/*.pbt > .ctfe/sand"]
 }
