@@ -41,7 +41,7 @@ function makeScope(): ParsedScope {
   return { path: "", decision: "", event: "", controls: [] };
 }
 
-export function parseTextproto(input: string, source: string): ParseResult {
+export function parsePbt(input: string, source: string): ParseResult {
   const result: ParseResult = { scopes: [], source };
   let pos = 0;
 

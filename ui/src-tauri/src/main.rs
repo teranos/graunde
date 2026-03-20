@@ -18,7 +18,7 @@ fn dirs_next() -> PathBuf {
         .join("graunde")
 }
 
-fn textproto_dir() -> PathBuf {
+fn controls_dir() -> PathBuf {
     // Walk up from the executable to find the graunde project root,
     // or use a known path. For now, use the compile-time project root.
     let mut dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -28,14 +28,14 @@ fn textproto_dir() -> PathBuf {
 }
 
 #[derive(Serialize)]
-struct TextprotoFile {
+struct ControlFile {
     name: String,
     content: String,
 }
 
 #[tauri::command]
-fn read_textprotos() -> Vec<TextprotoFile> {
-    let dir = textproto_dir();
+fn read_controls() -> Vec<ControlFile> {
+    let dir = controls_dir();
     let mut files = Vec::new();
 
     let entries = match fs::read_dir(&dir) {
@@ -45,14 +45,14 @@ fn read_textprotos() -> Vec<TextprotoFile> {
 
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().is_some_and(|e| e == "textproto") {
+        if path.extension().is_some_and(|e| e == "pbt") {
             if let Ok(content) = fs::read_to_string(&path) {
                 let name = path
                     .file_stem()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string();
-                files.push(TextprotoFile { name, content });
+                files.push(ControlFile { name, content });
             }
         }
     }
@@ -199,7 +199,7 @@ fn month_days(month: i64) -> i64 {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![read_textprotos, read_fires])
+        .invoke_handler(tauri::generate_handler![read_controls, read_fires])
         .run(tauri::generate_context!())
         .expect("error running graunde");
 }

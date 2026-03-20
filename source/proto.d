@@ -34,7 +34,7 @@ private CheckFn defaultResolveCheck(string) { return null; }
 private DelayFn defaultResolveDelay(string) { return null; }
 private DeliverFn defaultResolveDeliver(string) { return null; }
 
-// --- Build Scope[] from parsed prototext, filtered by event ---
+// --- Build Scope[] from parsed pbt, filtered by event ---
 // Uses fixed-size buffers to avoid GC (required by -betterC).
 // Only called at CTFE — local array slices are interned by the compiler.
 
@@ -123,9 +123,9 @@ ScopeSet mergeScopes(const ScopeSet* a, const ScopeSet* b, const ScopeSet* c) {
     return result;
 }
 
-// --- CTFE prototext parser ---
+// --- CTFE pbt parser ---
 
-ParseResult parsePrototext(string input) {
+ParseResult parsePbt(string input) {
     ParseResult result;
     size_t pos = 0;
 
@@ -364,7 +364,7 @@ scope {
 `;
 
 // Test parse structure
-enum testParsed = parsePrototext(testInput);
+enum testParsed = parsePbt(testInput);
 static assert(testParsed.scopeCount == 4);
 
 // Scope 0: PreToolUse

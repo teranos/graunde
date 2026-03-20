@@ -1,7 +1,7 @@
 module controls;
 
 public import hooks;
-import proto : parsePrototext, buildScopes, ScopeSet, mergeScopes;
+import proto : parsePbt, buildScopes, ScopeSet, mergeScopes;
 
 static if (__traits(compiles, { import qntx; }))
     import qntx;
@@ -9,9 +9,9 @@ static if (__traits(compiles, { import qntx; }))
 version (OSX)
     import macos;
 
-// --- Parsed prototext (CTFE) ---
+// --- Parsed pbt (CTFE) ---
 
-enum baseParsed = parsePrototext(import("controls/controls.textproto"));
+enum baseParsed = parsePbt(import("controls/controls.pbt"));
 
 // --- Handler resolvers (CTFE) ---
 
@@ -159,9 +159,9 @@ uint fnv1a(const(char)[] data) {
 }
 
 enum CONTROLS_HASH = fnv1a(
-    import("controls/controls.textproto")
-    ~ import("controls/qntx.textproto")
-    ~ import("controls/macos.textproto")
+    import("controls/controls.pbt")
+    ~ import("controls/qntx.pbt")
+    ~ import("controls/macos.pbt")
     ~ import("source/proto.d")
 );
 
@@ -173,9 +173,9 @@ bool controlsAreStale(const(char)[] cwd) {
     size_t total = 0;
 
     static foreach (suffix; [
-        "/controls/controls.textproto",
-        "/controls/qntx.textproto",
-        "/controls/macos.textproto",
+        "/controls/controls.pbt",
+        "/controls/qntx.pbt",
+        "/controls/macos.pbt",
         "/source/proto.d",
     ]) {{
         if (cwd.length + suffix.length + 1 > pathBuf.length) return false;

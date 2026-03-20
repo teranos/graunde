@@ -1,8 +1,8 @@
 import { mount } from "svelte";
 import App from "./App.svelte";
-import { parseTextproto, type ParseResult } from "./parse.js";
+import { parsePbt, type ParseResult } from "./parse.js";
 
-type TextprotoFile = { name: string; content: string };
+type ControlFile = { name: string; content: string };
 
 type FireData = Record<string, {
   count: number;
@@ -11,7 +11,7 @@ type FireData = Record<string, {
 }>;
 
 function mockData(): { files: ParseResult[]; fires: FireData } {
-  const mock: TextprotoFile[] = [
+  const mock: ControlFile[] = [
     {
       name: "mockery",
       content: `
@@ -128,7 +128,7 @@ scope {
     "existential-crisis": { count: 42, last_fired: "2026-03-19T22:00:00Z", buckets: [4, 6, 7, 5, 8, 6, 6] },
   };
 
-  return { files: mock.map(f => parseTextproto(f.content, f.name)), fires };
+  return { files: mock.map(f => parsePbt(f.content, f.name)), fires };
 }
 
 async function init() {
@@ -138,10 +138,10 @@ async function init() {
   if ((window as any).__TAURI__) {
     const { invoke } = await import("@tauri-apps/api/core");
     const [rawFiles, firesData] = await Promise.all([
-      invoke<TextprotoFile[]>("read_textprotos"),
+      invoke<ControlFile[]>("read_controls"),
       invoke<FireData>("read_fires"),
     ]);
-    files = rawFiles.map(f => parseTextproto(f.content, f.name));
+    files = rawFiles.map(f => parsePbt(f.content, f.name));
     fires = firesData;
   } else {
     const mock = mockData();
