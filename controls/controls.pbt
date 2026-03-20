@@ -157,7 +157,6 @@ scope {
     cmd: "git push"
     delay_handler: "ciDelay"
     deliver_handler: "ciDeliver"
-    defer_prefix: "CI: "
   }
 
   control {
@@ -165,7 +164,7 @@ scope {
     cmd: "gh pr"
     posttool: "@claude review"
     defer_sec: 300
-    defer_prefix: "Claude left a review comment."
+    defer_msg: "Claude left a review comment."
   }
 }
 
@@ -302,11 +301,6 @@ scope {
     msg: "/usr/local/bin/graunde exists and shadows ~/.local/bin/graunde — remove it with: rm /usr/local/bin/graunde"
   }
 
-  control {
-    name: "stale-controls"
-    check_handler: "controlsAreStale"
-    msg: "graunde binary is out of date with source — recompile with dub test && make install"
-  }
 }
 
 # SessionStart — QNTX-scoped

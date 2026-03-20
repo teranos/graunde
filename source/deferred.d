@@ -478,7 +478,13 @@ const(char)[] checkCIStatus(const(char)[] cwd, const(char)[] branch) {
     // Trim trailing newline
     if (n > 0 && outBuf[n - 1] == '\n') n--;
     if (n == 0) return null;
-    return outBuf[0 .. n];
+
+    // Prepend "CI: " label
+    __gshared char[520] resultBuf = 0;
+    enum prefix = "CI: ";
+    resultBuf[0 .. prefix.length] = prefix;
+    resultBuf[prefix.length .. prefix.length + n] = outBuf[0 .. n];
+    return resultBuf[0 .. prefix.length + n];
 }
 
 // --- Defer write/read cycle tests ---

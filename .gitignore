@@ -20,6 +20,8 @@ graunde-test-application
 
 # Generated
 .version
+.ctfe/*
+!.ctfe/.gitkeep
 result
 
 # Debug captures

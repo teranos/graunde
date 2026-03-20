@@ -13,7 +13,7 @@ struct ParsedControl {
     bool bg;
     int tmo;
     string checkHandler, delayHandler, deliverHandler;
-    string deferPrefix;
+    string deferMsg;
     int deferSec;
 }
 
@@ -88,10 +88,10 @@ ScopeSet buildScopes(
                     ? resolveDelay(pc.delayHandler) : null;
                 c.defer.deliverFn = pc.deliverHandler.length > 0
                     ? resolveDeliver(pc.deliverHandler) : null;
-                c.defer.msgPrefix = pc.deferPrefix;
-            } else if (pc.deferSec > 0 || pc.deferPrefix.length > 0) {
+                c.defer.msg = pc.deferMsg;
+            } else if (pc.deferSec > 0 || pc.deferMsg.length > 0) {
                 c.defer.delaySec = pc.deferSec;
-                c.defer.msgPrefix = pc.deferPrefix;
+                c.defer.msg = pc.deferMsg;
             }
 
             assert(poolLen < result.ctrlPool.length);
@@ -227,7 +227,7 @@ ParsedControl parseControl(ref string input, ref size_t pos) {
             case "check_handler":   c.checkHandler = val; break;
             case "delay_handler":   c.delayHandler = val; break;
             case "deliver_handler": c.deliverHandler = val; break;
-            case "defer_prefix":    c.deferPrefix = val; break;
+            case "defer_msg":       c.deferMsg = val; break;
             case "defer_sec":       c.deferSec = parseInt(val); break;
             case "stop":
             case "posttool":
@@ -364,7 +364,6 @@ scope {
     cmd: "git push"
     delay_handler: "ciDelay"
     deliver_handler: "ciDeliver"
-    defer_prefix: "CI: "
   }
 }
 
@@ -418,7 +417,7 @@ static assert(testParsed.scopes[1].controls[0].triggers[1] == "probably because"
 static assert(testParsed.scopes[2].event == "PostToolUseDeferred");
 static assert(testParsed.scopes[2].controls[0].delayHandler == "ciDelay");
 static assert(testParsed.scopes[2].controls[0].deliverHandler == "ciDeliver");
-static assert(testParsed.scopes[2].controls[0].deferPrefix == "CI: ");
+static assert(testParsed.scopes[2].controls[0].deferMsg == "");
 
 // Scope 3: SessionStart with check handler
 static assert(testParsed.scopes[3].controls[0].checkHandler == "testCheck");
