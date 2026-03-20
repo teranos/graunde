@@ -1,4 +1,4 @@
-.PHONY: build test install tower tower-dev
+.PHONY: build test install ui ui-dev
 
 PREFIX ?= $(HOME)/.local
 build:
@@ -11,8 +11,11 @@ install: build
 	mkdir -p $(PREFIX)/bin
 	cp graunde $(PREFIX)/bin/graunde
 
-tower:
-	cd tower && bun install --frozen-lockfile && cargo tauri build
+ui:
+	cd ui && bun install --frozen-lockfile && cargo tauri build
 
-tower-dev:
-	cd tower && bun install && cargo tauri dev
+ui-dev:
+	cd ui && bun install && cargo tauri dev
+
+ui-mock:
+	cd ui && bun run build && cd dist && python3 -m http.server 3100

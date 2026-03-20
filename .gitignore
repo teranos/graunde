@@ -40,6 +40,7 @@ docs/
 *.lst
 
 # Tower
-tower/dist/
-tower/node_modules/
-tower/src-tauri/target/
+ui/dist/
+ui/node_modules/
+ui/src-tauri/target/
+ui/src-tauri/gen/

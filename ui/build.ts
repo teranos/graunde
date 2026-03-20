@@ -21,4 +21,4 @@ await build({
 });
 
 copyFileSync("index.html", "dist/index.html");
-copyFileSync("src/tower.css", "dist/tower.css");
+copyFileSync("src/graunde.css", "dist/graunde.css");
