@@ -2,7 +2,7 @@
 # TODO: catch entity IDs used as subjects — IDs belong in attributes, not subjects
 scope {
   path: "/QNTX"
-  decision: "allow"
+
   event: "PreToolUse"
 
   control {
@@ -22,7 +22,7 @@ scope {
 # QNTX — file-path controls
 scope {
   path: "/QNTX"
-  decision: "allow"
+
   event: "PreToolUseFile"
 
   control {
@@ -59,7 +59,7 @@ scope {
 # QNTX — UserPromptSubmit
 scope {
   path: "/QNTX"
-  decision: "allow"
+
   event: "UserPromptSubmit"
 
   control {
@@ -78,7 +78,7 @@ scope {
 # QNTX — PreCompact
 scope {
   path: "/QNTX"
-  decision: "allow"
+
   event: "PreCompact"
 
   control {

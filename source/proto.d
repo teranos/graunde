@@ -100,7 +100,8 @@ ScopeSet buildScopes(
         }
 
         assert(result.len < result.items.length);
-        result.items[result.len] = Scope(ps.path, ps.decision, result.ctrlPool[ctrlStart .. poolLen]);
+        auto decision = ps.decision.length > 0 ? ps.decision : "allow";
+        result.items[result.len] = Scope(ps.path, decision, result.ctrlPool[ctrlStart .. poolLen]);
         result.len++;
     }
     return result;
@@ -378,11 +379,21 @@ scope {
     msg: "stale"
   }
 }
+
+# Defaults test — no path, no decision
+scope {
+  event: "PreToolUse"
+
+  control {
+    name: "test-defaults"
+    cmd: "echo"
+  }
+}
 `;
 
 // Test parse structure
 enum testParsed = parsePbt(testInput);
-static assert(testParsed.scopeCount == 4);
+static assert(testParsed.scopeCount == 5);
 
 // Scope 0: PreToolUse
 static assert(testParsed.scopes[0].path == "");
@@ -412,9 +423,17 @@ static assert(testParsed.scopes[2].controls[0].deferPrefix == "CI: ");
 // Scope 3: SessionStart with check handler
 static assert(testParsed.scopes[3].controls[0].checkHandler == "testCheck");
 
+// Scope 4: defaults — path="" and decision="allow" when omitted
+static assert(testParsed.scopes[4].path == "");
+static assert(testParsed.scopes[4].decision == "");
+static assert(testParsed.scopes[4].controls[0].name == "test-defaults");
+static assert(testParsed.scopes[4].controls[0].msg == "");
+
 // Test buildScopes without handlers (default resolvers)
 enum testBuilt = buildScopes(testParsed, "PreToolUse");
-static assert(testBuilt.len == 1);
+static assert(testBuilt.len == 2);
+// Scope with omitted decision defaults to "allow"
+static assert(testBuilt.items[1].decision == "allow");
 static assert(testBuilt.items[0].controls.length == 2);
 static assert(testBuilt.items[0].controls[0].name == "test-cmd");
 static assert(testBuilt.items[0].controls[0].cmd.value == "git");

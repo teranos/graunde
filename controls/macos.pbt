@@ -13,8 +13,6 @@ scope {
 
 # macOS — UserPromptSubmit
 scope {
-  path: ""
-  decision: "allow"
   event: "UserPromptSubmit"
 
   control {

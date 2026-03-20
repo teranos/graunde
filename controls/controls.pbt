@@ -1,7 +1,5 @@
 # Universal PreToolUse — auto-approved command controls
 scope {
-  path: ""
-  decision: "allow"
   event: "PreToolUse"
 
   control {
@@ -74,7 +72,6 @@ scope {
 
 # Checkpoints — require manual approval
 scope {
-  path: ""
   decision: "ask"
   event: "PreToolUse"
 
@@ -124,7 +121,6 @@ scope {
 # Graunde project-scoped
 scope {
   path: "/graunde"
-  decision: "allow"
   event: "PreToolUse"
 
   control {
@@ -137,8 +133,6 @@ scope {
 
 # PostToolUse — reminders after tool execution
 scope {
-  path: ""
-  decision: "allow"
   event: "PostToolUse"
 
   control {
@@ -156,8 +150,6 @@ scope {
 
 # PostToolUseDeferred — deferred checks
 scope {
-  path: ""
-  decision: "allow"
   event: "PostToolUseDeferred"
 
   control {
@@ -179,8 +171,6 @@ scope {
 
 # PostToolUseFailure — hints on tool failure
 scope {
-  path: ""
-  decision: "allow"
   event: "PostToolUseFailure"
 
   control {
@@ -192,8 +182,6 @@ scope {
 
 # PreCompact — re-inject context before compaction
 scope {
-  path: ""
-  decision: "allow"
   event: "PreCompact"
 
   control {
@@ -205,15 +193,12 @@ scope {
 
 # UserPromptSubmit — empty universal set
 scope {
-  path: ""
-  decision: "allow"
   event: "UserPromptSubmit"
 }
 
 # UserPromptSubmit — graunde-excluded
 scope {
   path: "!/graunde"
-  decision: "allow"
   event: "UserPromptSubmit"
 
   control {
@@ -226,7 +211,6 @@ scope {
 # UserPromptSubmit — qntx-excluded
 scope {
   path: "!/QNTX"
-  decision: "allow"
   event: "UserPromptSubmit"
 
   control {
@@ -238,8 +222,6 @@ scope {
 
 # Stop — pattern matching on last assistant message
 scope {
-  path: ""
-  decision: "allow"
   event: "Stop"
 
   control {
@@ -277,7 +259,6 @@ scope {
 # Stop — QNTX-scoped
 scope {
   path: "/QNTX"
-  decision: "allow"
   event: "Stop"
 
   control {
@@ -313,8 +294,6 @@ scope {
 
 # SessionStart — checks on startup
 scope {
-  path: ""
-  decision: "allow"
   event: "SessionStart"
 
   control {
@@ -333,7 +312,6 @@ scope {
 # SessionStart — QNTX-scoped
 scope {
   path: "/QNTX"
-  decision: "allow"
   event: "SessionStart"
 
   control {
