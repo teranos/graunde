@@ -38,3 +38,7 @@ docs/
 
 # Code coverage
 *.lst
+
+# Tower
+tower/dist/
+tower/node_modules/

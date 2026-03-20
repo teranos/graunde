@@ -78,6 +78,7 @@ scope {
   }
 }
 
+# TODO: block commits with files over 4MB
 # Checkpoints — require manual approval
 scope {
   path: ""

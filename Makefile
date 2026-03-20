@@ -1,4 +1,4 @@
-.PHONY: build test install
+.PHONY: build test install tower tower-dev
 
 PREFIX ?= $(HOME)/.local
 build:
@@ -10,3 +10,9 @@ test:
 install: build
 	mkdir -p $(PREFIX)/bin
 	cp graunde $(PREFIX)/bin/graunde
+
+tower:
+	cd tower && bun install --frozen-lockfile && bun run build
+
+tower-dev:
+	cd tower && bun install && bun run dev

@@ -1,0 +1,15 @@
+{
+  "name": "tower",
+  "private": true,
+  "scripts": {
+    "build": "bun run build.ts",
+    "dev": "bun run dev-server.ts"
+  },
+  "dependencies": {
+    "svelte": "5.28.2"
+  },
+  "devDependencies": {
+    "esbuild-svelte": "0.9.3",
+    "svelte-preprocess-esbuild": "3.0.1"
+  }
+}
