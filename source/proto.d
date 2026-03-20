@@ -34,7 +34,7 @@ private CheckFn defaultResolveCheck(string) { return null; }
 private DelayFn defaultResolveDelay(string) { return null; }
 private DeliverFn defaultResolveDeliver(string) { return null; }
 
-// --- Build Scope[] from parsed prototext, filtered by event ---
+// --- Build Scope[] from parsed pbt, filtered by event ---
 // Uses fixed-size buffers to avoid GC (required by -betterC).
 // Only called at CTFE — local array slices are interned by the compiler.
 
@@ -123,9 +123,26 @@ ScopeSet mergeScopes(const ScopeSet* a, const ScopeSet* b, const ScopeSet* c) {
     return result;
 }
 
-// --- CTFE prototext parser ---
+// --- CTFE pbt parser ---
+// Controls are data — pbt (Protocol Buffer Text) format, parsed at compile time.
+// No .proto schema; format defined by convention. 4 controls reference code
+// handlers by name (ciDelay, ciDeliver, binaryShadowed, controlsAreStale),
+// the rest are pure name + pattern + message. The UI reads the same pbt files.
+//
+// Format alternatives considered:
+//   HCL  — closest relative (block { } nesting), but requires = on every line
+//   KDL  — compact node-based, but key="value" everywhere adds noise
+//   TOML — sections + key=value, no nested blocks
+//   Pkl  — Apple's config lang, clean but "new { }" stutter for list items
+//   Dhall — typed with imports/functions, a programming language not a config format
+//   UCL  — FreeBSD config, close but requires = or : and ;
+//   Nix  — attribute sets, everything quoted + semicolons
+//   INI/conf/cfg — flat key-value, no nested blocks
+//
+// pbt wins: `key value` on a line, blocks for nesting, quotes only when needed.
+// Human-writeable, LLM-writeable, machine-parseable. No ceremony.
 
-ParseResult parsePrototext(string input) {
+ParseResult parsePbt(string input) {
     ParseResult result;
     size_t pos = 0;
 
@@ -364,7 +381,7 @@ scope {
 `;
 
 // Test parse structure
-enum testParsed = parsePrototext(testInput);
+enum testParsed = parsePbt(testInput);
 static assert(testParsed.scopeCount == 4);
 
 // Scope 0: PreToolUse
