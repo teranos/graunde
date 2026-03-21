@@ -121,6 +121,11 @@ sqlite3* openStandaloneDb() {
         ~ "session_id TEXT PRIMARY KEY, project TEXT NOT NULL)\0";
     sqlite3_exec(db, sessionProjectSchema.ptr, null, null, null);
 
+    enum idxPredicate = "CREATE INDEX IF NOT EXISTS idx_attestations_predicate ON attestations(json_extract(predicates, '$[0]'))\0";
+    enum idxControl = "CREATE INDEX IF NOT EXISTS idx_attestations_control ON attestations(json_extract(attributes, '$.control'))\0";
+    sqlite3_exec(db, idxPredicate.ptr, null, null, null);
+    sqlite3_exec(db, idxControl.ptr, null, null, null);
+
     return db;
 }
 
@@ -151,26 +156,14 @@ bool attestationExists(sqlite3* db, const(char)[] graundedPredicate, const(char)
     ctx.put(sessionId);
     ctx.put("%");
 
-    // Find the control attestation's rowid
-    enum sql = "SELECT rowid FROM attestations WHERE predicates LIKE ?1 AND attributes LIKE ?2 AND contexts LIKE ?3 ORDER BY rowid DESC LIMIT 1\0";
+    // Find the control attestation's rowid — uses json_extract indexes
+    enum sql = "SELECT rowid FROM attestations WHERE json_extract(predicates, '$[0]') = ?1 AND json_extract(attributes, '$.control') = ?2 AND contexts LIKE ?3 ORDER BY rowid DESC LIMIT 1\0";
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
         return false;
 
-    __gshared ZBuf pred;
-    pred.reset();
-    pred.put("%");
-    pred.put(graundedPredicate);
-    pred.put("%");
-
-    __gshared ZBuf ctrl;
-    ctrl.reset();
-    ctrl.put(`%"control":"`);
-    ctrl.put(controlName);
-    ctrl.put(`"%`);
-
-    sqlite3_bind_text(stmt, 1, pred.ptr(), cast(int) pred.len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, ctrl.ptr(), cast(int) ctrl.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 1, graundedPredicate.ptr, cast(int) graundedPredicate.length, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, controlName.ptr, cast(int) controlName.length, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 3, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
 
     bool found = sqlite3_step(stmt) == SQLITE_ROW;
@@ -184,7 +177,7 @@ bool attestationExists(sqlite3* db, const(char)[] graundedPredicate, const(char)
     sqlite3_finalize(stmt);
 
     // Check if a PreCompact event occurred after this attestation in the same session
-    enum compactSql = "SELECT 1 FROM attestations WHERE predicates LIKE '%PreCompact%' AND contexts LIKE ?1 AND rowid > ?2 LIMIT 1\0";
+    enum compactSql = "SELECT 1 FROM attestations WHERE json_extract(predicates, '$[0]') = 'PreCompact' AND contexts LIKE ?1 AND rowid > ?2 LIMIT 1\0";
     sqlite3_stmt* compactStmt;
     if (sqlite3_prepare_v2(db, compactSql.ptr, -1, &compactStmt, null) != SQLITE_OK)
         return true; // can't check, assume still valid
