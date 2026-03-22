@@ -104,12 +104,8 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         auto branch = getBranch(cwd);
         auto trailResult = checkTrailControls(branch, db);
         if (trailResult.control !is null) {
-            __gshared ZBuf graundedAttrs;
-            graundedAttrs.reset();
-            graundedAttrs.put(`{"control":"`);
-            graundedAttrs.put(trailResult.control.name);
-            graundedAttrs.put(`"}`);
-            attestEvent(db, "GraundedStop", cwd, sessionId, graundedAttrs.slice());
+            import sqlite : attestControlFire;
+            attestControlFire(db, "GraundedStop", trailResult.control.name, cwd, sessionId);
             sqlite3_close(db);
             writeStopResponseAndNotify(trailResult.reason);
             return 0;
@@ -133,12 +129,8 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                         if (contains(lastMsg, v)) { matched = true; break; }
                     if (!matched) continue;
 
-                    __gshared ZBuf stopAttrs;
-                    stopAttrs.reset();
-                    stopAttrs.put(`{"control":"`);
-                    stopAttrs.put(c.name);
-                    stopAttrs.put(`"}`);
-                    attestEvent(db, "GraundedStop", cwd, sessionId, stopAttrs.slice());
+                    import sqlite : attestControlFire;
+                    attestControlFire(db, "GraundedStop", c.name, cwd, sessionId);
                     sqlite3_close(db);
                     writeStopResponseAndNotify(c.msg.value);
                     return 0;
