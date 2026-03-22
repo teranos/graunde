@@ -1,5 +1,8 @@
 # QNTX — commands
 # TODO: catch entity IDs used as subjects — IDs belong in attributes, not subjects
+# TODO: Stop control for "Config in am.toml would be" — Claude must prove claims by referencing plugin code, not speculate about config
+# TODO: Stop control for "add this to am.toml" / "add the following to am.toml" — read am.toml first, don't prescribe config blind
+# TODO: Stop control for "is the plugin installed" speculation — check Makefile install targets, am.toml [Plugin] enabled list, and ~/.qntx/plugins/ before answering
 scope {
   path: "/QNTX"
 

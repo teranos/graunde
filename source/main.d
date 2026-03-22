@@ -116,11 +116,17 @@ void writeResponse(const(char)[] command, const(char)[] context, const(char)[] d
 }
 
 enum VERSION = import(".version");
+enum BUILDDATE = import(".builddate");
 
 void printVersion() {
     fputs("graunde ", stderr);
-    // Print version without trailing newline from git describe
     foreach (c; VERSION)
+        if (c != '\n' && c != '\r') {
+            char[1] buf = c;
+            fwrite(&buf[0], 1, 1, stderr);
+        }
+    fputs(" built ", stderr);
+    foreach (c; BUILDDATE)
         if (c != '\n' && c != '\r') {
             char[1] buf = c;
             fwrite(&buf[0], 1, 1, stderr);

@@ -31,6 +31,7 @@
             buildPhase = ''
               export HOME=$(mktemp -d)
               echo "${version}" > .version
+              date -u +%Y-%m-%dT%H:%M:%SZ > .builddate
               ${pkgs.dub}/bin/dub build --build=release
             '';
 
