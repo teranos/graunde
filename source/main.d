@@ -355,12 +355,8 @@ int run(ref const(char)[] outEventName) {
                     else if (fileDecision.length == 0) fileDecision = sc.decision;
 
                     if (db !is null) {
-                        __gshared ZBuf fileAttrs;
-                        fileAttrs.reset();
-                        fileAttrs.put(`{"control":"`);
-                        fileAttrs.put(c.name);
-                        fileAttrs.put(`"}`);
-                        attestEvent(db, "GraundedPreToolUse", cwd, sessionId, fileAttrs.slice());
+                        import sqlite : attestControlFire;
+                        attestControlFire(db, "GraundedPreToolUse", c.name, cwd, sessionId);
                     }
                 }
             }
@@ -432,17 +428,8 @@ int run(ref const(char)[] outEventName) {
 
                 // Attest the fire
                 {
-                    import sqlite : openDb, attestEvent, sqlite3_close, ZBuf;
-                    auto pcDb = openDb();
-                    if (pcDb !is null) {
-                        __gshared ZBuf pcAttrs;
-                        pcAttrs.reset();
-                        pcAttrs.put(`{"control":"`);
-                        pcAttrs.put(c.name);
-                        pcAttrs.put(`"}`);
-                        attestEvent(pcDb, "GraundedPreCompact", cwd, sessionId, pcAttrs.slice());
-                        sqlite3_close(pcDb);
-                    }
+                    import sqlite : attestControlFire;
+                    attestControlFire(null, "GraundedPreCompact", c.name, cwd, sessionId);
                 }
             }
         }
@@ -468,17 +455,8 @@ int run(ref const(char)[] outEventName) {
                     if (c.cmd.value.length > 0 && hasSegment(detail, c.cmd.value) && c.msg.value.length > 0) {
                         // Attest the fire
                         {
-                            import sqlite : openDb, attestEvent, sqlite3_close, ZBuf;
-                            auto ptDb = openDb();
-                            if (ptDb !is null) {
-                                __gshared ZBuf ptAttrs;
-                                ptAttrs.reset();
-                                ptAttrs.put(`{"control":"`);
-                                ptAttrs.put(c.name);
-                                ptAttrs.put(`"}`);
-                                attestEvent(ptDb, "GraundedPostToolUse", cwd, sessionId, ptAttrs.slice());
-                                sqlite3_close(ptDb);
-                            }
+                            import sqlite : attestControlFire;
+                            attestControlFire(null, "GraundedPostToolUse", c.name, cwd, sessionId);
                         }
                         fputs(`{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"`, stdout);
                         import parse : writeJsonString;
@@ -521,12 +499,8 @@ int run(ref const(char)[] outEventName) {
 
                     // Attest the fire
                     {
-                        __gshared ZBuf dfAttrs;
-                        dfAttrs.reset();
-                        dfAttrs.put(`{"control":"`);
-                        dfAttrs.put(c.name);
-                        dfAttrs.put(`"}`);
-                        attestEvent(db, "GraundedPostToolUseDeferred", cwd, sessionId, dfAttrs.slice());
+                        import sqlite : attestControlFire;
+                        attestControlFire(db, "GraundedPostToolUseDeferred", c.name, cwd, sessionId);
                     }
 
                     sqlite3_close(db);
@@ -556,17 +530,8 @@ int run(ref const(char)[] outEventName) {
 
                     // Attest the fire
                     {
-                        import sqlite : openDb, attestEvent, sqlite3_close, ZBuf;
-                        auto pfDb = openDb();
-                        if (pfDb !is null) {
-                            __gshared ZBuf pfAttrs;
-                            pfAttrs.reset();
-                            pfAttrs.put(`{"control":"`);
-                            pfAttrs.put(c.name);
-                            pfAttrs.put(`"}`);
-                            attestEvent(pfDb, "GraundedPostToolUseFailure", cwd, sessionId, pfAttrs.slice());
-                            sqlite3_close(pfDb);
-                        }
+                        import sqlite : attestControlFire;
+                        attestControlFire(null, "GraundedPostToolUseFailure", c.name, cwd, sessionId);
                     }
                     fputs(`{"systemMessage":"`, stdout);
                     fputs2(c.msg.value);

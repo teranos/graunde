@@ -207,17 +207,8 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
 
                 // Attest the fire
                 {
-                    import sqlite : openDb, attestEvent, sqlite3_close, ZBuf;
-                    auto adb = openDb();
-                    if (adb !is null) {
-                        __gshared ZBuf ssAttrs;
-                        ssAttrs.reset();
-                        ssAttrs.put(`{"control":"`);
-                        ssAttrs.put(c.name);
-                        ssAttrs.put(`"}`);
-                        attestEvent(adb, "GraundedSessionStart", cwd, sessionId, ssAttrs.slice());
-                        sqlite3_close(adb);
-                    }
+                    import sqlite : attestControlFire;
+                    attestControlFire(null, "GraundedSessionStart", c.name, cwd, sessionId);
                 }
             }
         }

@@ -41,12 +41,8 @@ int handleUserPromptSubmit(const(char)[] input, const(char)[] cwd, const(char)[]
             any = true;
 
             if (db !is null) {
-                __gshared ZBuf attrs;
-                attrs.reset();
-                attrs.put(`{"control":"`);
-                attrs.put(c.name);
-                attrs.put(`"}`);
-                attestEvent(db, "GraundedUserPromptSubmit", cwd, sessionId, attrs.slice());
+                import sqlite : attestControlFire;
+                attestControlFire(db, "GraundedUserPromptSubmit", c.name, cwd, sessionId);
             }
         }
     }

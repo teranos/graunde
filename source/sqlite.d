@@ -493,6 +493,27 @@ void attestEvent(
     sendToLoom(subjects, predicates, contexts, payload);
 }
 
+// --- Control fire attestation ---
+// Attests that a control fired. Handles the {"control":"<name>"} JSON and openDb lifecycle.
+// If db is null, opens and closes its own handle.
+
+void attestControlFire(sqlite3* db, const(char)[] predicate, const(char)[] controlName,
+                       const(char)[] cwd, const(char)[] sessionId) {
+    __gshared ZBuf cfAttrs;
+    cfAttrs.reset();
+    cfAttrs.put(`{"control":"`);
+    cfAttrs.put(controlName);
+    cfAttrs.put(`"}`);
+
+    bool ownDb = db is null;
+    if (ownDb) {
+        db = openDb();
+        if (db is null) return;
+    }
+    attestEvent(db, predicate, cwd, sessionId, cfAttrs.slice());
+    if (ownDb) sqlite3_close(db);
+}
+
 // --- Type attestation ---
 // Attests a type definition so QNTX knows what to do with the data.
 // ID encodes version — re-attested when graunde updates. INSERT OR IGNORE prevents duplicates.
