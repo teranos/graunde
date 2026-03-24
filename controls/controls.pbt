@@ -142,6 +142,16 @@ scope {
   }
 }
 
+scope {
+  path: "/graunde"
+  event: "PostToolUse"
+
+  control {
+    name: "build-timing"
+    cmd: "make install"
+  }
+}
+
 # PostToolUse — reminders after tool execution
 scope {
   event: "PostToolUse"
@@ -272,7 +282,9 @@ scope {
         "don't have access to previous conversation",
         "don't have access to previous session",
         "don't have access to conversation history",
-        "dialogue isn't stored anywhere"
+        "dialogue isn't stored anywhere",
+        "no previous conversation transcripts",
+        "no session history"
     ]
     msg: "Wrong. Previous conversations are accessible. JSONL transcripts are stored at ~/.claude/projects/. The graunde db at ~/.local/share/graunde/graunde.db stores last_assistant_message in Stop attestation attributes. Check before claiming you can't."
   }

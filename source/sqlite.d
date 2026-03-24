@@ -123,8 +123,10 @@ sqlite3* openStandaloneDb() {
 
     enum idxPredicate = "CREATE INDEX IF NOT EXISTS idx_attestations_predicate ON attestations(json_extract(predicates, '$[0]'))\0";
     enum idxControl = "CREATE INDEX IF NOT EXISTS idx_attestations_control ON attestations(json_extract(attributes, '$.control'))\0";
+    enum idxSubject = "CREATE INDEX IF NOT EXISTS idx_attestations_subject ON attestations(json_extract(subjects, '$[0]'))\0";
     sqlite3_exec(db, idxPredicate.ptr, null, null, null);
     sqlite3_exec(db, idxControl.ptr, null, null, null);
+    sqlite3_exec(db, idxSubject.ptr, null, null, null);
 
     return db;
 }

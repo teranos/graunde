@@ -36,20 +36,19 @@ TrailMatch checkTrailControls(const(char)[] branch, sqlite3* db) {
 // Timestamps are ISO strings — lexicographic comparison suffices.
 
 bool clippyMatch(sqlite3* db, const(char)[] branch) {
-    __gshared ZBuf subjectPat;
-    subjectPat.reset();
-    subjectPat.put(`%"`);
-    subjectPat.put(branch);
-    subjectPat.put(`"%`);
+    import sqlite : buildSubject;
+    // Build the full subject (e.g. "tmp/graunde:main") to match the indexed column
+    __gshared ZBuf subjectVal;
+    // Need cwd to build subject — get it from the global in stop.d
+    import stop : g_cwd;
+    buildSubject(subjectVal, g_cwd, branch);
 
-    enum actorPat = `%"graunde"%` ~ "\0";
-    enum sql = "SELECT attributes, timestamp FROM attestations WHERE subjects LIKE ?1 AND actors LIKE ?2 ORDER BY timestamp ASC\0";
+    enum sql = "SELECT attributes, timestamp FROM attestations WHERE json_extract(subjects, '$[0]') = ?1 ORDER BY timestamp ASC\0";
 
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
         return false;
-    sqlite3_bind_text(stmt, 1, subjectPat.ptr(), cast(int) subjectPat.len, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, actorPat.ptr, cast(int) actorPat.length - 1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 1, subjectVal.ptr(), cast(int) subjectVal.len, SQLITE_TRANSIENT);
 
     __gshared char[32] latestClippy = 0;
     __gshared char[32] latestRs = 0;
