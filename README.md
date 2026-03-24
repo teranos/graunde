@@ -30,19 +30,40 @@ go test -tags "rustsqlite,qntxwasm" -short ./...
 ```
 Claude receives: *"Build tags and -short are required for go test in QNTX."*
 
-The user mentions "ADR" in a prompt:
-```d
-control("adr-reminder", userprompt("ADR"),
-    msg("ADRs are in docs/adr/ — check existing decisions before proposing new ones.")),
+The user mentions "graunde" in a prompt:
 ```
-Claude receives: *"ADRs are in docs/adr/ — check existing decisions before proposing new ones."*
+scope {
+  event: "UserPromptSubmit"
 
-A session starts in a project with local configuration:
-```d
-control("config-reminder", sessionstart(),
-    msg("Config is in config.toml — check it before assuming defaults.")),
+  control {
+    name: "graunde-reminder"
+    userprompt: "graunde"
+    msg: "Graunde — a hook that fires on every hook event..."
+  }
+}
 ```
-Claude receives: *"Config is in config.toml — check it before assuming defaults."*
+Claude receives the context before it starts responding.
+
+Claude says "each conversation starts fresh":
+```
+scope {
+  event: "Stop"
+
+  control {
+    name: "previous-conversations-accessible"
+    stop: [
+        "each conversation starts fresh",
+        "each session starts fresh",
+        "don't have access to previous conversation",
+        "don't have access to previous session",
+        "don't have access to conversation history",
+        "dialogue isn't stored anywhere"
+    ]
+    msg: "Wrong. Previous conversations are accessible. JSONL transcripts are stored at ~/.claude/projects/."
+  }
+}
+```
+Claude corrects itself and checks the transcripts.
 
 ## Install
 
@@ -71,7 +92,7 @@ Runs as a [Claude Code hook](https://docs.anthropic.com/en/docs/claude-code/hook
 
 Amendments are silent — the command runs with the corrected arguments and Claude receives a message explaining why. Unmatched commands pass through unchanged. Keyword controls on UserPromptSubmit inject context when the user mentions a topic.
 
-Controls are defined in `controls/controls.d` and compiled into the binary. The binary is the config.
+Controls are defined in `controls/*.pbt` and compiled into the binary. The binary is the config.
 
 ## Why D
 
