@@ -21,3 +21,14 @@ scope {
     msg: `You can set a timer on macOS. Run in background: sleep <seconds> && say "time" &`
   }
 }
+
+# macOS — Stop
+scope {
+  event: "Stop"
+
+  control {
+    name: "timer-capability"
+    stop: ["can't set system timers", "can't set timers", "cannot set timers", "can't set a timer", "cannot set a timer"]
+    msg: `You can set a timer. Run: sleep <seconds> && say "time" &`
+  }
+}
