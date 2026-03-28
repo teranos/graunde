@@ -104,7 +104,7 @@ const(char)[] checkTagStaleness() {
 // Schema: see sqlite.d attestType / attestEvent.
 //
 void attestTypes() {
-    import sqlite : openDb, attestType, sqlite3_close;
+    import sqlite : openDb, attestType, walCheckpoint, sqlite3_close;
     auto db = openDb();
     if (db is null) return;
 
@@ -129,6 +129,7 @@ void attestTypes() {
     attestType(db, "GraundedPostToolUseFailure", "Graunded", `{}`);
     attestType(db, "GraundedPostToolUseDeferred", "Graunded", `{}`);
 
+    walCheckpoint(db);
     sqlite3_close(db);
 }
 

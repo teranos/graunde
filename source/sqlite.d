@@ -149,6 +149,10 @@ void mkdirP(const(char)[] path) {
     }
 }
 
+void walCheckpoint(sqlite3* db) {
+    sqlite3_exec(db, "PRAGMA wal_checkpoint(TRUNCATE)\0".ptr, null, null, null);
+}
+
 // Check if a Grounded attestation exists for a control in this session,
 // and hasn't been invalidated by a subsequent compaction.
 bool attestationExists(sqlite3* db, const(char)[] graundedPredicate, const(char)[] controlName, const(char)[] sessionId) {
