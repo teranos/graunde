@@ -125,8 +125,9 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                 foreach (ref c; sc.controls) {
                     if (c.trigger.len == 0) continue;
                     bool matched = false;
+                    import matcher : wildcardContains;
                     foreach (ref v; c.trigger.values)
-                        if (contains(lastMsg, v)) { matched = true; break; }
+                        if (wildcardContains(lastMsg, v)) { matched = true; break; }
                     if (!matched) continue;
 
                     import sqlite : attestationExists, attestControlFire;

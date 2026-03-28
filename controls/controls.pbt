@@ -281,6 +281,12 @@ scope {
   }
 
   control {
+    name: "check-logs-yourself"
+    stop: "check the*log"
+    msg: "You can read logs and terminal output yourself. Use your tools instead of asking the user."
+  }
+
+  control {
     name: "previous-conversations-accessible"
     stop: [
         "each conversation starts fresh",

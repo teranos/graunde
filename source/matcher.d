@@ -362,6 +362,53 @@ FileMatch checkFilePath(const(char)[] filePath, const(char)[] cwd) {
     return FileMatch(false, "", "", "");
 }
 
+// Wildcard match — "check the*log" matches "check the server log".
+// Splits pattern on '*', each part must appear in order (case-insensitive).
+// No '*' = plain contains.
+bool wildcardContains(const(char)[] haystack, const(char)[] pattern) {
+    // Fast path: no wildcard
+    bool hasWild = false;
+    foreach (c; pattern)
+        if (c == '*') { hasWild = true; break; }
+    if (!hasWild)
+        return contains(haystack, pattern);
+
+    // Split on '*' and match segments in order
+    size_t pos = 0; // current position in haystack
+    size_t segStart = 0;
+    foreach (i; 0 .. pattern.length + 1) {
+        bool atEnd = (i == pattern.length);
+        bool atStar = !atEnd && pattern[i] == '*';
+        if (atStar || atEnd) {
+            auto seg = pattern[segStart .. i];
+            if (seg.length > 0) {
+                // Find seg in haystack starting from pos (case-insensitive)
+                bool found = false;
+                if (seg.length <= haystack.length) {
+                    foreach (j; pos .. haystack.length - seg.length + 1) {
+                        bool match = true;
+                        foreach (k; 0 .. seg.length) {
+                            char a = haystack[j + k];
+                            char b = seg[k];
+                            if (a >= 'A' && a <= 'Z') a += 32;
+                            if (b >= 'A' && b <= 'Z') b += 32;
+                            if (a != b) { match = false; break; }
+                        }
+                        if (match) {
+                            pos = j + seg.length;
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (!found) return false;
+            }
+            segStart = i + 1;
+        }
+    }
+    return true;
+}
+
 // --- Major Tom's test suite ---
 
 enum QNTX = "/Users/dev/QNTX";
@@ -564,4 +611,40 @@ unittest {
     assert(results.count == 2);
     assert(results.matches[0].control.name == "git-push-pull-first");
     assert(results.matches[1].control.name == "git-checkout-b");
+}
+
+// --- Wildcard matching tests ---
+
+unittest {
+    // No wildcard — behaves like contains
+    assert(wildcardContains("can you check the log", "check the log"));
+    assert(!wildcardContains("check something", "check the log"));
+}
+
+unittest {
+    // Wildcard matches gap between segments
+    assert(wildcardContains("Can you check the server log for errors", "check the*log"));
+    assert(wildcardContains("check the full error log", "check the*log"));
+    assert(wildcardContains("check the log", "check the*log")); // zero-gap
+}
+
+unittest {
+    // Case insensitive
+    assert(wildcardContains("Check The Server Log", "check the*log"));
+}
+
+unittest {
+    // Wildcard does NOT match when segments are out of order
+    assert(!wildcardContains("log check the errors", "check the*log"));
+}
+
+unittest {
+    // "check the*logs" matches plural too
+    assert(wildcardContains("Can you check the server logs?", "check the*log"));
+}
+
+unittest {
+    // Multiple wildcards
+    assert(wildcardContains("check the server log for errors", "check*log*error"));
+    assert(!wildcardContains("check the server for errors", "check*log*error"));
 }
