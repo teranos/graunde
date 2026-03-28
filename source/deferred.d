@@ -122,7 +122,7 @@ DeferredMsg readDeferredMessage(sqlite3* db, const(char)[] sessionId) {
     auto now = cast(long) time(null);
 
     // Find deferred attestations for this session, newest first
-    enum sql = "SELECT predicates, attributes, timestamp FROM attestations WHERE predicates LIKE '%deferred:%' AND contexts LIKE ?1 ORDER BY timestamp DESC LIMIT 5\0";
+    enum sql = "SELECT predicates, attributes, timestamp FROM attestations WHERE json_extract(predicates, '$[0]') >= 'deferred:' AND json_extract(predicates, '$[0]') < 'deferred;' AND contexts LIKE ?1 ORDER BY timestamp DESC LIMIT 5\0";
 
     __gshared ZBuf ctx;
     ctx.reset();
@@ -243,7 +243,7 @@ struct ProjectDeferredMsg {
 ProjectDeferredMsg readProjectDeferredMessage(sqlite3* db, const(char)[] cwd) {
     auto now = cast(long) time(null);
 
-    enum sql = "SELECT predicates, attributes, contexts, timestamp FROM attestations WHERE predicates LIKE '%deferred:%' AND contexts LIKE '%project:%' ORDER BY timestamp DESC LIMIT 5\0";
+    enum sql = "SELECT predicates, attributes, contexts, timestamp FROM attestations WHERE json_extract(predicates, '$[0]') >= 'deferred:' AND json_extract(predicates, '$[0]') < 'deferred;' AND contexts LIKE '%project:%' ORDER BY timestamp DESC LIMIT 5\0";
 
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
