@@ -3,7 +3,18 @@ module stop;
 import parse : extractBool, extractLastAssistantMessage, writeJsonString;
 import sqlite : openDb, attestEvent,
                 getBranch, sqlite3, sqlite3_close, ZBuf;
-import core.stdc.stdio : stdout, fputs;
+import core.stdc.stdio : stdout, stderr, fputs, fprintf;
+
+extern (C) {
+    struct timeval { long tv_sec; long tv_usec; }
+    int gettimeofday(timeval* tv, void* tz);
+}
+
+long usecNow() {
+    timeval tv;
+    gettimeofday(&tv, null);
+    return tv.tv_sec * 1_000_000 + tv.tv_usec;
+}
 import deferred : DeferredMsg;
 import hooks : DeliverFn;
 
@@ -88,6 +99,8 @@ void writeStopResponseAndNotify(const(char)[] reason) {
 }
 
 int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
+    auto t0 = usecNow();
+
     g_cwd = cwd;
     g_sessionId = sessionId;
 
@@ -96,8 +109,12 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
     if (hookActive)
         return 0;
 
+    auto t1 = usecNow();
+
     auto db = openDb();
     if (db is null) return 0;
+
+    auto t2 = usecNow();
 
     {
         import trail : checkTrailControls;
@@ -111,6 +128,8 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
             return 0;
         }
     }
+
+    auto t3 = usecNow();
 
     // Stop controls — pattern matching on last assistant message
     {
@@ -142,6 +161,8 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         }
     }
 
+    auto t4 = usecNow();
+
     // Deliver-based Stop controls — no trigger, main only, compaction-window dedup
     {
         auto branch = getBranch(cwd);
@@ -171,6 +192,8 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
             }
         }
     }
+
+    auto t5 = usecNow();
 
     // Check session-scoped deferred messages — deliver if ready
     {
@@ -202,11 +225,13 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         }
     }
 
+    auto t6 = usecNow();
+
     // Per-event-type timing budgets — once per compaction window
     {
         import sqlite : attestationExists, sqlite3_prepare_v2, sqlite3_step, sqlite3_column_int64,
                         sqlite3_bind_text, sqlite3_finalize, sqlite3_stmt, SQLITE_OK, SQLITE_ROW,
-                        SQLITE_TRANSIENT;
+                        SQLITE_TRANSIENT, cwdTail;
 
         if (!attestationExists(db, "GraundedStop", "timing-regression", sessionId)) {
             struct Budget { string event; long thresholdUs; }
@@ -214,17 +239,19 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                 Budget("PreToolUse",       50_000),
                 Budget("PostToolUse",     100_000),
                 Budget("UserPromptSubmit", 50_000),
-                Budget("Stop",            800_000),
+                Budget("Stop",            300_000),
                 Budget("SessionStart",  2_000_000),
             ];
 
-            enum timingSql = "SELECT AVG(duration_us), COUNT(*) FROM (SELECT duration_us FROM timing WHERE hook_event = ?1 ORDER BY id DESC LIMIT 20)\0";
+            enum timingSql = "SELECT AVG(duration_us), COUNT(*) FROM (SELECT duration_us FROM timing WHERE hook_event = ?1 AND project = ?2 ORDER BY id DESC LIMIT 20)\0";
+            auto project = cwdTail(cwd);
 
             foreach (ref b; budgets) {
                 sqlite3_stmt* stmt;
                 if (sqlite3_prepare_v2(db, timingSql.ptr, -1, &stmt, null) != SQLITE_OK)
                     continue;
                 sqlite3_bind_text(stmt, 1, b.event.ptr, cast(int) b.event.length, SQLITE_TRANSIENT);
+                sqlite3_bind_text(stmt, 2, project.ptr, cast(int) project.length, SQLITE_TRANSIENT);
                 if (sqlite3_step(stmt) == SQLITE_ROW) {
                     auto avgUs = sqlite3_column_int64(stmt, 0);
                     auto sampleCount = sqlite3_column_int64(stmt, 1);
@@ -245,6 +272,22 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                         foreach (vc; VERSION)
                             if (vc != '\n' && vc != '\r') timingMsg.putChar(vc);
                         timingMsg.put(")");
+                        auto t7 = usecNow();
+                        timingMsg.put(" [parse=");
+                        putInt(timingMsg, (t1-t0)/1000);
+                        timingMsg.put("ms db=");
+                        putInt(timingMsg, (t2-t1)/1000);
+                        timingMsg.put("ms trail=");
+                        putInt(timingMsg, (t3-t2)/1000);
+                        timingMsg.put("ms triggers=");
+                        putInt(timingMsg, (t4-t3)/1000);
+                        timingMsg.put("ms deliver=");
+                        putInt(timingMsg, (t5-t4)/1000);
+                        timingMsg.put("ms deferred=");
+                        putInt(timingMsg, (t6-t5)/1000);
+                        timingMsg.put("ms timing=");
+                        putInt(timingMsg, (t7-t6)/1000);
+                        timingMsg.put("ms]");
                         attestEvent(db, "GraundedStop", cwd, sessionId, `{"control":"timing-regression"}`);
                         sqlite3_close(db);
                         writeStopResponseAndNotify(timingMsg.slice());
@@ -255,6 +298,11 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
             }
         }
     }
+
+    auto t7 = usecNow();
+
+    fprintf(stderr, "STOP-PROFILE parse=%ldus db=%ldus trail=%ldus triggers=%ldus deliver=%ldus deferred=%ldus timing=%ldus total=%ldus\n".ptr,
+        t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6, t7-t0);
 
     sqlite3_close(db);
     return 0;

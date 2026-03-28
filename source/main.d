@@ -161,7 +161,7 @@ void printDuration(long t0) {
     fputs("\n", stderr);
 }
 
-void recordTiming(long elapsedUs, const(char)[] hookEvent) {
+void recordTiming(long elapsedUs, const(char)[] hookEvent, const(char)[] project) {
     import sqlite : openDb, sqlite3_exec, sqlite3_prepare_v2, sqlite3_bind_int64,
                     sqlite3_bind_text, sqlite3_step, sqlite3_finalize, sqlite3_close,
                     sqlite3_stmt, SQLITE_OK, SQLITE_TRANSIENT;
@@ -176,15 +176,21 @@ void recordTiming(long elapsedUs, const(char)[] hookEvent) {
     enum migrateSql = "ALTER TABLE timing ADD COLUMN hook_event TEXT\0";
     sqlite3_exec(db, migrateSql.ptr, null, null, null);
 
-    enum idxTiming = "CREATE INDEX IF NOT EXISTS idx_timing_event_id ON timing(hook_event, id)\0";
+    // Migrate: add project column for per-project timing
+    enum migrateProject = "ALTER TABLE timing ADD COLUMN project TEXT\0";
+    sqlite3_exec(db, migrateProject.ptr, null, null, null);
+
+    enum idxTiming = "CREATE INDEX IF NOT EXISTS idx_timing_event_project ON timing(hook_event, project, id)\0";
     sqlite3_exec(db, idxTiming.ptr, null, null, null);
 
-    enum sql = "INSERT INTO timing (duration_us, hook_event) VALUES (?1, ?2)\0";
+    enum sql = "INSERT INTO timing (duration_us, hook_event, project) VALUES (?1, ?2, ?3)\0";
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) == SQLITE_OK) {
         sqlite3_bind_int64(stmt, 1, elapsedUs);
         if (hookEvent.length > 0)
             sqlite3_bind_text(stmt, 2, hookEvent.ptr, cast(int) hookEvent.length, SQLITE_TRANSIENT);
+        if (project.length > 0)
+            sqlite3_bind_text(stmt, 3, project.ptr, cast(int) project.length, SQLITE_TRANSIENT);
         sqlite3_step(stmt);
         sqlite3_finalize(stmt);
     }
@@ -200,14 +206,15 @@ extern (C) int main() {
 
     auto t0 = usecNow();
     const(char)[] eventName;
-    auto rc = run(eventName);
+    const(char)[] project;
+    auto rc = run(eventName, project);
     auto elapsed = usecNow() - t0;
     printDuration(t0);
-    recordTiming(elapsed, eventName);
+    recordTiming(elapsed, eventName, project);
     return rc;
 }
 
-int run(ref const(char)[] outEventName) {
+int run(ref const(char)[] outEventName, ref const(char)[] outProject) {
 
     auto input = readStdin();
     if (input is null) {
@@ -220,6 +227,9 @@ int run(ref const(char)[] outEventName) {
     if (cwd is null) cwd = "";
     auto sessionId = extractSessionId(input);
     if (sessionId is null) sessionId = "";
+
+    import sqlite : cwdTail;
+    outProject = cwdTail(cwd);
 
     auto eventName = extractHookEventName(input);
     if (eventName is null) return 0;
@@ -445,6 +455,17 @@ int run(ref const(char)[] outEventName) {
 
         fputs(`"}`, stdout);
         fputs("\n", stdout);
+
+        // Checkpoint WAL so the next Stop doesn't pay for our writes
+        {
+            import sqlite : openDb, walCheckpoint, sqlite3_close;
+            auto cpDb = openDb();
+            if (cpDb !is null) {
+                walCheckpoint(cpDb);
+                sqlite3_close(cpDb);
+            }
+        }
+
         return 0;
     }
 
