@@ -361,3 +361,9 @@ scope {
     msg: "Read am.toml in the project root and report back: port number, db path, logfile location, and enabled plugins."
   }
 }
+
+# Permissions — auto-allow/deny for permission dialogs
+permission {
+  tool: "Bash"
+  allow: ["*sleep*", "*say*", "time *"]
+}

@@ -398,6 +398,12 @@ int run(ref const(char)[] outEventName, ref const(char)[] outProject, ref bool o
         return 0;
     }
 
+    // PermissionRequest — auto-allow/deny permission dialogs
+    if (event == HookEvent.PermissionRequest) {
+        import permissionrequest : handlePermissionRequest;
+        return handlePermissionRequest(input, cwd, sessionId);
+    }
+
     // UserPromptSubmit — keyword controls
     if (event == HookEvent.UserPromptSubmit) {
         import userprompt : handleUserPromptSubmit;
