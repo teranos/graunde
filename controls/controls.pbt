@@ -365,5 +365,13 @@ scope {
 # Permissions — auto-allow/deny for permission dialogs
 permission {
   tool: "Bash"
-  allow: ["*sleep*", "*say*", "time *"]
+  allow: ["sleep *", "say *", "time *"]
+  deny: ["sed *", "awk *"]
+  msg: "Use Edit tool instead of sed/awk"
+}
+
+permission {
+  tool: "Read"
+  deny: [".env", ".env.*", "secrets/*"]
+  msg: "Secrets are off-limits"
 }

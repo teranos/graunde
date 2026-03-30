@@ -1,7 +1,7 @@
 module permissionrequest;
 
 import core.stdc.stdio : stdout, fputs;
-import parse : extractToolName, extractCommand, writeJsonString;
+import parse : extractToolName, extractCommand, extractFilePath, writeJsonString;
 import permission : evaluatePermission, Decision;
 
 int handlePermissionRequest(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
@@ -9,7 +9,7 @@ int handlePermissionRequest(const(char)[] input, const(char)[] cwd, const(char)[
     if (toolName is null) return 0;
 
     auto command = extractCommand(input);
-    // For non-Bash tools command may be absent — use empty string
+    if (command is null) command = extractFilePath(input);
     if (command is null) command = "";
 
     import controls : permissionScopes;

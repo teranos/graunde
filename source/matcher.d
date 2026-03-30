@@ -409,6 +409,45 @@ bool wildcardContains(const(char)[] haystack, const(char)[] pattern) {
     return true;
 }
 
+// --- Strip quoted content from commands ---
+// Removes content between matching quotes (single and double).
+// "git commit -m "Migrate sed/awk"" → "git commit -m "
+// "sed -i 's/foo/bar/' file"        → "sed -i  file"
+
+struct StripBuf {
+    char[8192] data = 0;
+    size_t len;
+    const(char)[] slice() const return { return data[0 .. len]; }
+}
+
+StripBuf stripQuoted(const(char)[] cmd) {
+    StripBuf result;
+    size_t i = 0;
+    while (i < cmd.length && result.len < result.data.length) {
+        char c = cmd[i];
+        if (c == '"' || c == '\'') {
+            // Skip until matching close quote
+            i++;
+            while (i < cmd.length && cmd[i] != c) i++;
+            if (i < cmd.length) i++; // skip closing quote
+        } else {
+            result.data[result.len++] = c;
+            i++;
+        }
+    }
+    return result;
+}
+
+// --- stripQuoted tests ---
+
+static assert(stripQuoted(`git commit -m "Migrate sed/awk"`).slice == `git commit -m `);
+static assert(stripQuoted(`sed -i 's/foo/bar/' file`).slice == `sed -i  file`);
+static assert(stripQuoted(`echo "hello world"`).slice == `echo `);
+static assert(stripQuoted(`sleep 3 && say "time"`).slice == `sleep 3 && say `);
+static assert(stripQuoted(`awk '{print $1}' file.txt`).slice == `awk  file.txt`);
+static assert(stripQuoted(`no quotes here`).slice == `no quotes here`);
+static assert(stripQuoted(`sed 's/a/b/' "my file.txt"`).slice == `sed  `);
+
 // --- Major Tom's test suite ---
 
 enum QNTX = "/Users/dev/QNTX";

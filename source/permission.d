@@ -1,6 +1,6 @@
 module permission;
 
-import matcher : wildcardContains;
+import matcher : wildcardContains, stripQuoted;
 import proto : ParseResult, ParsedPermission, parsePbt;
 
 // --- Runtime permission structs ---
@@ -87,6 +87,10 @@ PermissionResult evaluatePermission(
 ) {
     import hooks : scopeMatches;
 
+    // Strip quoted content so patterns match commands, not their string arguments
+    auto stripped = stripQuoted(command);
+    auto cmd = stripped.slice;
+
     PermissionResult result;
 
     foreach (ref sc; scopes) {
@@ -97,14 +101,14 @@ PermissionResult evaluatePermission(
 
             // Check deny first
             foreach (ref pat; p.deny.values) {
-                if (wildcardContains(command, pat)) {
+                if (wildcardContains(cmd, pat)) {
                     return PermissionResult(Decision.deny, p.msg);
                 }
             }
 
             // Check ask
             foreach (ref pat; p.ask.values) {
-                if (wildcardContains(command, pat)) {
+                if (wildcardContains(cmd, pat)) {
                     if (result.decision < Decision.ask)
                         result.decision = Decision.ask;
                 }
@@ -112,7 +116,7 @@ PermissionResult evaluatePermission(
 
             // Check allow
             foreach (ref pat; p.allow.values) {
-                if (wildcardContains(command, pat)) {
+                if (wildcardContains(cmd, pat)) {
                     if (result.decision < Decision.allow)
                         result.decision = Decision.allow;
                 }
@@ -189,3 +193,11 @@ static assert(r7.decision == Decision.allow);
 // Deny + allow in same permission — deny wins
 enum r8 = evaluatePermission(testPermSet[], "/home/user/project", "Bash", "go build && rm -rf /tmp");
 static assert(r8.decision == Decision.deny);
+
+// Quoted content ignored — "rm -rf" inside a commit message does NOT trigger deny
+enum r9 = evaluatePermission(testPermSet[], "/home/user/project", "Bash", `git commit -m "rm -rf cleanup"`);
+static assert(r9.decision == Decision.none);
+
+// Quoted content ignored — deny pattern in unquoted part still fires
+enum r10 = evaluatePermission(testPermSet[], "/home/user/project", "Bash", `rm -rf /tmp && echo "done"`);
+static assert(r10.decision == Decision.deny);
