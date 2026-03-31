@@ -4,8 +4,21 @@ import hooks;
 
 // --- Fixed-size intermediate structs (no GC) ---
 
+struct ParsedPermission {
+    string name;
+    string tool;          // "Bash", "Write", "Edit", etc.
+    string[16] allow;
+    ubyte allowCount;
+    string[16] deny;
+    ubyte denyCount;
+    string[16] ask;
+    ubyte askCount;
+    string msg;
+}
+
 struct ParsedControl {
     string name;
+    string event; // only used for top-level controls (without enclosing scope)
     string cmd, arg, omit;
     string[16] triggers;
     ubyte triggerCount;
@@ -22,10 +35,12 @@ struct ParsedScope {
     string path, decision, event;
     ParsedControl[24] controls;
     size_t controlCount;
+    ParsedPermission[16] permissions;
+    size_t permissionCount;
 }
 
 struct ParseResult {
-    ParsedScope[32] scopes;
+    ParsedScope[64] scopes;
     size_t scopeCount;
 }
 
@@ -166,11 +181,34 @@ ParseResult parsePbt(string input) {
         if (word == "scope") {
             skipWS(input, pos);
             expect(input, pos, '{');
-            assert(result.scopeCount < result.scopes.length);
+            assert(result.scopeCount < result.scopes.length, "Scope limit reached — increase ParseResult.scopes array size in proto.d");
             result.scopes[result.scopeCount] = parseScope(input, pos);
             result.scopeCount++;
+        } else if (word == "permission") {
+            // Top-level permission — wrap in a scope with path "/"
+            skipWS(input, pos);
+            expect(input, pos, '{');
+            assert(result.scopeCount < result.scopes.length, "Scope limit reached — increase ParseResult.scopes array size in proto.d");
+            ParsedScope sc;
+            sc.path = "/";
+            sc.permissions[0] = parsePermission(input, pos);
+            sc.permissionCount = 1;
+            result.scopes[result.scopeCount] = sc;
+            result.scopeCount++;
+        } else if (word == "control") {
+            // Top-level control — wrap in a scope with path "/"
+            skipWS(input, pos);
+            expect(input, pos, '{');
+            assert(result.scopeCount < result.scopes.length, "Scope limit reached — increase ParseResult.scopes array size in proto.d");
+            ParsedScope sc;
+            sc.path = "/";
+            sc.controls[0] = parseControl(input, pos);
+            sc.event = sc.controls[0].event; // inherit event from control
+            sc.controlCount = 1;
+            result.scopes[result.scopeCount] = sc;
+            result.scopeCount++;
         } else {
-            assert(0, "Expected 'scope'");
+            assert(0, "Expected 'scope', 'permission', or 'control'");
         }
     }
     return result;
@@ -193,6 +231,12 @@ ParsedScope parseScope(ref string input, ref size_t pos) {
             assert(sc.controlCount < sc.controls.length);
             sc.controls[sc.controlCount] = parseControl(input, pos);
             sc.controlCount++;
+        } else if (key == "permission") {
+            skipWS(input, pos);
+            expect(input, pos, '{');
+            assert(sc.permissionCount < sc.permissions.length);
+            sc.permissions[sc.permissionCount] = parsePermission(input, pos);
+            sc.permissionCount++;
         } else {
             skipWS(input, pos);
             expect(input, pos, ':');
@@ -225,6 +269,7 @@ ParsedControl parseControl(ref string input, ref size_t pos) {
 
         switch (key) {
             case "name":            c.name = val; break;
+            case "event":           c.event = val; break;
             case "cmd":             c.cmd = val; break;
             case "arg":             c.arg = val; break;
             case "omit":            c.omit = val; break;
@@ -263,6 +308,104 @@ ParsedControl parseControl(ref string input, ref size_t pos) {
         }
     }
     assert(0, "Unterminated control block");
+}
+
+// Infer permission name: strip wildcards/spaces from first pattern
+string inferFirstPattern(const ref ParsedPermission p) {
+    string pat;
+    if (p.allowCount > 0) pat = p.allow[0];
+    else if (p.denyCount > 0) pat = p.deny[0];
+    else if (p.askCount > 0) pat = p.ask[0];
+    else return null;
+
+    size_t start = 0;
+    size_t end = pat.length;
+    while (start < end && (pat[start] == '*' || pat[start] == ' ')) start++;
+    while (end > start && (pat[end - 1] == '*' || pat[end - 1] == ' ')) end--;
+    if (start >= end) return null;
+    return pat[start .. end];
+}
+
+ParsedPermission parsePermission(ref string input, ref size_t pos) {
+    ParsedPermission p;
+    while (pos < input.length) {
+        skipWS(input, pos);
+        if (pos >= input.length) break;
+        if (input[pos] == '#') { skipLine(input, pos); continue; }
+        if (input[pos] == '}') {
+            pos++;
+            if (p.name is null) p.name = inferFirstPattern(p);
+            return p;
+        }
+
+        auto key = readWord(input, pos);
+        skipWS(input, pos);
+        expect(input, pos, ':');
+        skipWS(input, pos);
+        auto val = readValue(input, pos);
+
+        switch (key) {
+            case "name": p.name = val; break;
+            case "tool": p.tool = val; break;
+            case "msg":  p.msg = val; break;
+            case "allow":
+                if (val is null) {
+                    while (pos < input.length) {
+                        skipWS(input, pos);
+                        if (pos < input.length && input[pos] == ']') { pos++; break; }
+                        auto item = readValue(input, pos);
+                        assert(p.allowCount < 16);
+                        p.allow[p.allowCount] = item;
+                        p.allowCount++;
+                        skipWS(input, pos);
+                        if (pos < input.length && input[pos] == ',') pos++;
+                    }
+                } else {
+                    assert(p.allowCount < 16);
+                    p.allow[p.allowCount] = val;
+                    p.allowCount++;
+                }
+                break;
+            case "deny":
+                if (val is null) {
+                    while (pos < input.length) {
+                        skipWS(input, pos);
+                        if (pos < input.length && input[pos] == ']') { pos++; break; }
+                        auto item = readValue(input, pos);
+                        assert(p.denyCount < 16);
+                        p.deny[p.denyCount] = item;
+                        p.denyCount++;
+                        skipWS(input, pos);
+                        if (pos < input.length && input[pos] == ',') pos++;
+                    }
+                } else {
+                    assert(p.denyCount < 16);
+                    p.deny[p.denyCount] = val;
+                    p.denyCount++;
+                }
+                break;
+            case "ask":
+                if (val is null) {
+                    while (pos < input.length) {
+                        skipWS(input, pos);
+                        if (pos < input.length && input[pos] == ']') { pos++; break; }
+                        auto item = readValue(input, pos);
+                        assert(p.askCount < 16);
+                        p.ask[p.askCount] = item;
+                        p.askCount++;
+                        skipWS(input, pos);
+                        if (pos < input.length && input[pos] == ',') pos++;
+                    }
+                } else {
+                    assert(p.askCount < 16);
+                    p.ask[p.askCount] = val;
+                    p.askCount++;
+                }
+                break;
+            default: assert(0, "Unknown permission field");
+        }
+    }
+    assert(0, "Unterminated permission block");
 }
 
 // --- Lexer helpers ---
@@ -556,3 +699,152 @@ static assert(listParsed.scopes[0].controls[0].triggerCount == 3);
 static assert(listParsed.scopes[0].controls[0].triggers[0] == "a");
 static assert(listParsed.scopes[0].controls[0].triggers[1] == "b");
 static assert(listParsed.scopes[0].controls[0].triggers[2] == "c");
+
+// --- Permission parsing tests ---
+
+// Basic permission in a scope
+enum permInput = `
+scope {
+  path: "/"
+
+  permission {
+    tool: "Bash"
+    allow: ["go build*", "go test*", "cargo build*"]
+    deny: ["*rm -rf*", "*--force*"]
+    msg: "Destructive operations blocked"
+  }
+}
+`;
+enum permParsed = parsePbt(permInput);
+static assert(permParsed.scopeCount == 1);
+static assert(permParsed.scopes[0].path == "/");
+static assert(permParsed.scopes[0].permissionCount == 1);
+static assert(permParsed.scopes[0].permissions[0].tool == "Bash");
+static assert(permParsed.scopes[0].permissions[0].allowCount == 3);
+static assert(permParsed.scopes[0].permissions[0].allow[0] == "go build*");
+static assert(permParsed.scopes[0].permissions[0].allow[1] == "go test*");
+static assert(permParsed.scopes[0].permissions[0].allow[2] == "cargo build*");
+static assert(permParsed.scopes[0].permissions[0].denyCount == 2);
+static assert(permParsed.scopes[0].permissions[0].deny[0] == "*rm -rf*");
+static assert(permParsed.scopes[0].permissions[0].deny[1] == "*--force*");
+static assert(permParsed.scopes[0].permissions[0].msg == "Destructive operations blocked");
+
+// Permission with all three decision types
+enum permFullInput = `
+scope {
+  path: "/"
+  permission {
+    tool: "Bash"
+    allow: ["sqlite3*"]
+    ask: ["*DELETE*", "*DROP*"]
+    deny: ["*rm -rf*"]
+  }
+}
+`;
+enum permFullParsed = parsePbt(permFullInput);
+static assert(permFullParsed.scopes[0].permissions[0].allowCount == 1);
+static assert(permFullParsed.scopes[0].permissions[0].allow[0] == "sqlite3*");
+static assert(permFullParsed.scopes[0].permissions[0].askCount == 2);
+static assert(permFullParsed.scopes[0].permissions[0].ask[0] == "*DELETE*");
+static assert(permFullParsed.scopes[0].permissions[0].ask[1] == "*DROP*");
+static assert(permFullParsed.scopes[0].permissions[0].denyCount == 1);
+
+// Permissions coexist with controls in the same scope
+enum permMixedInput = `
+scope {
+  path: "/my-project"
+  event: "Stop"
+
+  control {
+    name: "test-ctrl"
+    stop: "check the*log"
+    msg: "Read logs yourself"
+  }
+
+  permission {
+    tool: "Bash"
+    allow: ["npm run*"]
+  }
+}
+`;
+enum permMixedParsed = parsePbt(permMixedInput);
+static assert(permMixedParsed.scopes[0].controlCount == 1);
+static assert(permMixedParsed.scopes[0].controls[0].name == "test-ctrl");
+static assert(permMixedParsed.scopes[0].permissionCount == 1);
+static assert(permMixedParsed.scopes[0].permissions[0].tool == "Bash");
+static assert(permMixedParsed.scopes[0].permissions[0].allow[0] == "npm run*");
+
+// Multiple permissions in one scope
+enum permMultiInput = `
+scope {
+  path: "/"
+  permission {
+    tool: "Bash"
+    allow: ["*sleep*", "*say*"]
+  }
+  permission {
+    tool: "Bash"
+    deny: ["*rm -rf*"]
+    msg: "No destructive ops"
+  }
+}
+`;
+enum permMultiParsed = parsePbt(permMultiInput);
+static assert(permMultiParsed.scopes[0].permissionCount == 2);
+static assert(permMultiParsed.scopes[0].permissions[0].allowCount == 2);
+static assert(permMultiParsed.scopes[0].permissions[1].denyCount == 1);
+static assert(permMultiParsed.scopes[0].permissions[1].msg == "No destructive ops");
+
+// Top-level permission (no scope) — defaults to path "/"
+enum permTopLevelInput = `
+permission {
+  tool: "Bash"
+  allow: ["go build*", "make*"]
+}
+
+permission {
+  tool: "Bash"
+  deny: ["*--force*"]
+  msg: "No force pushes"
+}
+
+scope {
+  path: "/my-project"
+  event: "Stop"
+  control {
+    name: "test-ctrl"
+    stop: "guess"
+    msg: "Don't guess"
+  }
+}
+`;
+enum permTopParsed = parsePbt(permTopLevelInput);
+// Top-level permissions become scopes with path "/" and no event
+static assert(permTopParsed.scopeCount == 3);
+static assert(permTopParsed.scopes[0].path == "/");
+static assert(permTopParsed.scopes[0].permissionCount == 1);
+static assert(permTopParsed.scopes[0].permissions[0].tool == "Bash");
+static assert(permTopParsed.scopes[0].permissions[0].allowCount == 2);
+static assert(permTopParsed.scopes[0].permissions[0].allow[0] == "go build*");
+static assert(permTopParsed.scopes[1].path == "/");
+static assert(permTopParsed.scopes[1].permissions[0].denyCount == 1);
+static assert(permTopParsed.scopes[1].permissions[0].msg == "No force pushes");
+// Regular scope still parses normally
+static assert(permTopParsed.scopes[2].path == "/my-project");
+static assert(permTopParsed.scopes[2].controlCount == 1);
+
+// Top-level control (no scope) — wraps in scope with path "/"
+enum ctrlTopLevelInput = `
+control {
+  name: "check-logs"
+  event: "Stop"
+  stop: "check the*log"
+  msg: "Read logs yourself"
+}
+`;
+enum ctrlTopParsed = parsePbt(ctrlTopLevelInput);
+static assert(ctrlTopParsed.scopeCount == 1);
+static assert(ctrlTopParsed.scopes[0].path == "/");
+static assert(ctrlTopParsed.scopes[0].controlCount == 1);
+static assert(ctrlTopParsed.scopes[0].controls[0].name == "check-logs");
+static assert(ctrlTopParsed.scopes[0].controls[0].triggers[0] == "check the*log");

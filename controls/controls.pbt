@@ -328,7 +328,7 @@ scope {
 
   control {
     name: "port-check-am-toml-877"
-    stop: "port 877"
+    stop: ["port 877", ":877"]
     msg: "You mentioned a default port. Check am.toml in the project root for the actual port configuration."
   }
 
@@ -360,4 +360,18 @@ scope {
     name: "am-toml-reminder"
     msg: "Read am.toml in the project root and report back: port number, db path, logfile location, and enabled plugins."
   }
+}
+
+# Permissions — auto-allow/deny for permission dialogs
+permission {
+  tool: "Bash"
+  allow: ["sleep *", "say *", "time *"]
+  deny: ["sed *", "awk *"]
+  msg: "Use Edit tool instead of sed/awk"
+}
+
+permission {
+  tool: "Read"
+  deny: [".env", ".env.*", "secrets/*"]
+  msg: "Secrets are off-limits"
 }

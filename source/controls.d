@@ -2,6 +2,7 @@ module controls;
 
 public import hooks;
 import proto : parsePbt, buildScopes, ScopeSet;
+import permission : buildPermissions, PermissionSet;
 
 // --- Parsed pbt (CTFE) ---
 // Pre-build: cat controls/*.pbt > .ctfe/sand
@@ -62,6 +63,9 @@ static immutable postToolUseFailureScopes = _ptufSet.items[0 .. _ptufSet.len];
 
 private static immutable _pcSet = buildScopes(allParsed, "PreCompact");
 static immutable preCompactScopes = _pcSet.items[0 .. _pcSet.len];
+
+private static immutable _permSet = buildPermissions(allParsed);
+static immutable permissionScopes = _permSet.items[0 .. _permSet.len];
 
 // --- Handler functions ---
 
