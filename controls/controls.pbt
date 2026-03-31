@@ -287,6 +287,12 @@ scope {
   }
 
   control {
+    name: "stale-knowledge-as-fact"
+    stop: "is*latest*no*upgrade"
+    msg: "You stated stale training data as current fact. Check with tools before claiming something is or isn't the latest version."
+  }
+
+  control {
     name: "previous-conversations-accessible"
     stop: [
         "each conversation starts fresh",
