@@ -35,36 +35,6 @@ scope {
   }
 
   control {
-    name: "ci-view"
-    cmd: "gh run view"
-  }
-
-  control {
-    name: "ci-watch"
-    cmd: "gh run watch"
-  }
-
-  control {
-    name: "issue-list"
-    cmd: "gh issue list"
-  }
-
-  control {
-    name: "issue-view"
-    cmd: "gh issue view"
-  }
-
-  control {
-    name: "pr-list"
-    cmd: "gh pr list"
-  }
-
-  control {
-    name: "pr-view"
-    cmd: "gh pr view"
-  }
-
-  control {
     name: "pr-ready"
     cmd: "gh pr ready"
     msg: "This means the pr is ready to merge"
@@ -382,23 +352,4 @@ scope {
     name: "am-toml-reminder"
     msg: "Read am.toml in the project root and report back: port number, db path, logfile location, and enabled plugins."
   }
-}
-
-# Permissions — auto-allow/deny for permission dialogs
-permission {
-  tool: "Bash"
-  allow: [
-    "sleep *", "say *", "time *",
-    "find *", "cargo build*",
-    "gh run list*", "gh run view*", "gh run watch*",
-    "gh issue list*", "gh release list*"
-  ]
-  deny: ["sed *", "awk *"]
-  msg: "Use Edit tool instead of sed/awk"
-}
-
-permission {
-  tool: "Read"
-  deny: [".env", ".env.*", "secrets/*"]
-  msg: "Secrets are off-limits"
 }
