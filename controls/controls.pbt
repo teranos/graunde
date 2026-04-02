@@ -1,12 +1,13 @@
-# Universal PreToolUse — auto-approved command controls
+# Universal PreToolUse — auto-approved command controls.
 scope {
   event: "PreToolUse"
 
+  # "omit" strips the flag from the command before execution.
   control {
     name: "no-skip-hooks"
     cmd: "git"
     omit: "--no-verify"
-    msg: "Git hooks must not be bypassed, ever.."
+    msg: "Git hooks must not be bypassed, ever."
   }
 
   control {
