@@ -219,6 +219,18 @@ scope {
   event: "UserPromptSubmit"
 }
 
+# UserPromptSubmit — ground-scoped
+scope {
+  path: "/ground"
+  event: "UserPromptSubmit"
+
+  control {
+    name: "permission-reminder"
+    userprompt: "permission"
+    msg: "Permissions are defined in controls/permissions.pbt — not in ~/.claude/settings.json or .claude/settings.local.json. Check permissions.pbt for existing patterns before adding new ones."
+  }
+}
+
 # UserPromptSubmit — ground-excluded
 scope {
   path: "!/ground"

@@ -23,6 +23,11 @@ permission {
 
 permission {
   tool: "Bash"
+  allow: ["git -C * log*", "git -C * status*", "git -C * diff*"]
+}
+
+permission {
+  tool: "Bash"
   allow: [
     "gh run list*", "gh run view*", "gh run watch*",
     "gh issue list*", "gh issue view*", "gh release list*",
