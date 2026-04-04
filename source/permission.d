@@ -207,8 +207,10 @@ PermissionResult evaluatePermission(
             if (p.mode.length > 0) {
                 import posttooluse : modeMatches;
                 if (!modeMatches(p.mode, toolName)) continue;
+            } else {
+                // no mode = Bash only
+                if (toolName != "Bash") continue;
             }
-            // no mode = match all tools
 
             // Bash: match against stripped command with wildcardContains
             // File-path tools: match against raw path with permMatch
