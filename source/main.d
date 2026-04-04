@@ -22,11 +22,9 @@ module main;
 //   updatedInput             — (PreToolUse) replaces tool input before execution
 //   additionalContext        — (UserPromptSubmit required, PostToolUse optional) injected into context
 
-import matcher : contains, hasSegment;
-import parse : extractCommand, extractCwd, extractSessionId, extractHookEventName, extractFilePath, extractSource, writeJsonString, fputs2;
+import parse : extractCwd, extractSessionId, extractHookEventName, extractSource;
 import controls : HookEvent;
-import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fprintf, fwrite, FILE;
-import sqlite : popen, pclose;
+import core.stdc.stdio : stdin, stdout, stderr, fread, fputs, fwrite, FILE;
 import core.stdc.stdlib : exit;
 import core.sys.posix.unistd : isatty;
 
@@ -235,64 +233,9 @@ int run(ref const(char)[] outEventName, ref const(char)[] outProject, ref bool o
         return handleSessionStart(source, cwd, sessionId);
     }
 
-    // PreCompact — re-inject context that would be lost to compaction
     if (event == HookEvent.PreCompact) {
-        import matcher : contains;
-        import controls : preCompactScopes;
-        bool first = true;
-
-        fputs(`{"systemMessage":"`, stdout);
-
-        foreach (ref scope_; preCompactScopes) {
-            if (scope_.path.length > 0 && (cwd is null || !contains(cwd, scope_.path)))
-                continue;
-            foreach (ref c; scope_.controls) {
-                if (!first) fputs(" | ", stdout);
-                first = false;
-
-                if (c.msg.value.length > 0)
-                    fputs2(c.msg.value);
-
-                if (c.cmd.value.length > 0) {
-                    // Run cmd, append stdout (stripped of trailing newline)
-                    __gshared char[4096] cmdBuf = 0;
-                    __gshared char[1024] outBuf = 0;
-                    if (c.cmd.value.length < cmdBuf.length) {
-                        foreach (i, ch; c.cmd.value) cmdBuf[i] = ch;
-                        cmdBuf[c.cmd.value.length] = 0;
-                        auto pipe = popen(&cmdBuf[0], "r");
-                        if (pipe !is null) {
-                            auto n = fread(&outBuf[0], 1, outBuf.length, pipe);
-                            pclose(pipe);
-                            // Strip trailing newlines
-                            while (n > 0 && (outBuf[n-1] == '\n' || outBuf[n-1] == '\r')) n--;
-                            if (n > 0) fwrite(&outBuf[0], 1, n, stdout);
-                        }
-                    }
-                }
-
-                // Attest the fire
-                {
-                    import sqlite : attestControlFire;
-                    attestControlFire(null, "GroundedPreCompact", c.name, cwd, sessionId);
-                }
-            }
-        }
-
-        fputs(`"}`, stdout);
-        fputs("\n", stdout);
-
-        // Checkpoint WAL so the next Stop doesn't pay for our writes
-        {
-            import sqlite : openDb, walCheckpoint, sqlite3_close;
-            auto cpDb = openDb();
-            if (cpDb !is null) {
-                walCheckpoint(cpDb);
-                sqlite3_close(cpDb);
-            }
-        }
-
-        return 0;
+        import precompact : handlePreCompact;
+        return handlePreCompact(input, cwd, sessionId);
     }
 
     // PostToolUse — controls + CI deferral
@@ -301,37 +244,9 @@ int run(ref const(char)[] outEventName, ref const(char)[] outProject, ref bool o
         return handlePostToolUse(input, cwd, sessionId);
     }
 
-    // PostToolUseFailure — control-driven hints on failure
     if (event == HookEvent.PostToolUseFailure) {
-        import parse : extractError;
-        import controls : postToolUseFailureScopes;
-        import hooks : scopeMatches;
-        auto error = extractError(input);
-        if (error !is null) {
-            foreach (ref scope_; postToolUseFailureScopes) {
-                if (!scopeMatches(scope_.path, cwd))
-                    continue;
-                foreach (ref c; scope_.controls) {
-                    if (c.trigger.len == 0) continue;
-                    bool matched = false;
-                    foreach (ref v; c.trigger.values)
-                        if (contains(error, v)) { matched = true; break; }
-                    if (!matched) continue;
-
-                    // Attest the fire
-                    {
-                        import sqlite : attestControlFire;
-                        attestControlFire(null, "GroundedPostToolUseFailure", c.name, cwd, sessionId);
-                    }
-                    fputs(`{"systemMessage":"`, stdout);
-                    fputs2(c.msg.value);
-                    fputs(`"}`, stdout);
-                    fputs("\n", stdout);
-                    return 0;
-                }
-            }
-        }
-        return 0;
+        import posttoolusefailure : handlePostToolUseFailure;
+        return handlePostToolUseFailure(input, cwd, sessionId);
     }
 
     // Unknown/unhandled events — exit 0, no output
