@@ -36,38 +36,7 @@ extern (C) {
 // QNTX users get the shared node db. All array columns are JSON arrays of strings.
 // Query pattern: WHERE subjects LIKE '%"value"%' — quotes are part of JSON serialization.
 
-// --- Null-terminated buffer ---
-
-struct ZBuf {
-    char[4096] data = 0;
-    size_t len;
-
-    void put(const(char)[] s) {
-        foreach (c; s)
-            if (len + 1 < data.length) // reserve space for \0
-                data[len++] = c;
-        data[len] = '\0';
-    }
-
-    void putChar(char c) {
-        if (len + 1 < data.length)
-            data[len++] = c;
-        data[len] = '\0';
-    }
-
-    void reset() {
-        len = 0;
-        data[0] = '\0';
-    }
-
-    const(char)* ptr() {
-        return &data[0];
-    }
-
-    const(char)[] slice() {
-        return data[0 .. len];
-    }
-}
+public import zbuf : ZBuf;
 
 // --- DB lifecycle ---
 
