@@ -2,7 +2,15 @@ module proto;
 
 import hooks;
 
-// --- Fixed-size intermediate structs (no GC) ---
+// --- Two-pass CTFE sizing ---
+// Pass 1 (count.d) counts blocks, pass 2 parses into right-sized arrays.
+
+import count : countPbt, PbtCounts;
+
+private enum _sand = import(".ctfe/sand");
+enum pbtCounts = countPbt(_sand);
+
+// --- Intermediate structs — sized by pass 1 ---
 
 struct ParsedPermission {
     string name;
@@ -34,15 +42,20 @@ struct ParsedControl {
 
 struct ParsedScope {
     string path, decision, event;
-    ParsedControl[24] controls;
-    size_t controlCount;
-    ParsedPermission[16] permissions;
-    size_t permissionCount;
+    size_t controlStart, controlEnd;     // indices into ParseResult.ctrlPool
+    size_t permStart, permEnd;           // indices into ParseResult.permPool
+
+    size_t controlCount() const { return controlEnd - controlStart; }
+    size_t permissionCount() const { return permEnd - permStart; }
 }
 
 struct ParseResult {
-    ParsedScope[64] scopes;
+    ParsedScope[pbtCounts.totalScopes + 1] scopes;
     size_t scopeCount;
+    ParsedControl[pbtCounts.totalControls + 1] ctrlPool;
+    size_t ctrlPoolLen;
+    ParsedPermission[pbtCounts.totalPerms + 1] permPool;
+    size_t permPoolLen;
 }
 
 // --- Default (no-op) handler resolvers ---
@@ -56,8 +69,8 @@ private DeliverFn defaultResolveDeliver(string) { return null; }
 // Only called at CTFE — local array slices are interned by the compiler.
 
 struct ScopeSet {
-    Scope[32] items;
-    Control[256] ctrlPool;
+    Scope[pbtCounts.totalScopes + 1] items;
+    Control[pbtCounts.totalControls + 1] ctrlPool;
     size_t len;
 
     const(Scope)[] opSlice() const return { return items[0 .. len]; }
@@ -76,8 +89,8 @@ ScopeSet buildScopes(
         if (ps.event != eventFilter) continue;
 
         auto ctrlStart = poolLen;
-        foreach (j; 0 .. ps.controlCount) {
-            auto pc = &ps.controls[j];
+        foreach (j; ps.controlStart .. ps.controlEnd) {
+            auto pc = &parsed.ctrlPool[j];
             Control c;
             c.name = pc.name;
             c.mode = Mode(pc.mode);
@@ -189,25 +202,31 @@ ParseResult parsePbt(string input) {
             // Top-level permission — wrap in a scope with path "/"
             skipWS(input, pos);
             expect(input, pos, '{');
-            assert(result.scopeCount < result.scopes.length, "Scope limit reached — increase ParseResult.scopes array size in proto.d");
+            assert(result.scopeCount < result.scopes.length, "Scope overflow — pbtCounts.totalScopes too small");
             ParsedScope sc;
             sc.path = "/";
-            sc.permissions[0] = parsePermission(input, pos);
-            sc.permissions[0].mode = wm.mode;
-            sc.permissionCount = 1;
+            sc.permStart = result.permPoolLen;
+            assert(result.permPoolLen < result.permPool.length);
+            result.permPool[result.permPoolLen] = parsePermission(input, pos);
+            result.permPool[result.permPoolLen].mode = wm.mode;
+            result.permPoolLen++;
+            sc.permEnd = result.permPoolLen;
             result.scopes[result.scopeCount] = sc;
             result.scopeCount++;
         } else if (wm.base == "control") {
             // Top-level control — wrap in a scope with path "/"
             skipWS(input, pos);
             expect(input, pos, '{');
-            assert(result.scopeCount < result.scopes.length, "Scope limit reached — increase ParseResult.scopes array size in proto.d");
+            assert(result.scopeCount < result.scopes.length, "Scope overflow — pbtCounts.totalScopes too small");
             ParsedScope sc;
             sc.path = "/";
-            sc.controls[0] = parseControl(input, pos);
-            sc.controls[0].mode = wm.mode;
-            sc.event = sc.controls[0].event; // inherit event from control
-            sc.controlCount = 1;
+            sc.controlStart = result.ctrlPoolLen;
+            assert(result.ctrlPoolLen < result.ctrlPool.length);
+            result.ctrlPool[result.ctrlPoolLen] = parseControl(input, pos);
+            result.ctrlPool[result.ctrlPoolLen].mode = wm.mode;
+            sc.event = result.ctrlPool[result.ctrlPoolLen].event; // inherit event
+            result.ctrlPoolLen++;
+            sc.controlEnd = result.ctrlPoolLen;
             result.scopes[result.scopeCount] = sc;
             result.scopeCount++;
         } else {
@@ -228,7 +247,10 @@ void parseScope(ref string input, ref size_t pos, ref ParseResult result,
     sc.path = parentPath;
     sc.decision = parentDecision;
     sc.event = parentEvent;
+    sc.controlStart = result.ctrlPoolLen;
+    sc.permStart = result.permPoolLen;
     bool hasChildren = false;
+    bool rangeFinalized = false;
 
     while (pos < input.length) {
         skipWS(input, pos);
@@ -236,10 +258,13 @@ void parseScope(ref string input, ref size_t pos, ref ParseResult result,
         if (input[pos] == '#') { skipLine(input, pos); continue; }
         if (input[pos] == '}') {
             pos++;
-            // Only emit this scope if it has controls or permissions (not just children)
+            if (!rangeFinalized) {
+                sc.controlEnd = result.ctrlPoolLen;
+                sc.permEnd = result.permPoolLen;
+            }
             if (!hasChildren || sc.controlCount > 0 || sc.permissionCount > 0) {
                 assert(result.scopeCount < result.scopes.length,
-                    "Scope limit reached — increase ParseResult.scopes array size in proto.d");
+                    "Scope overflow — pbtCounts.totalScopes too small");
                 result.scopes[result.scopeCount] = sc;
                 result.scopeCount++;
             }
@@ -249,6 +274,12 @@ void parseScope(ref string input, ref size_t pos, ref ParseResult result,
         auto key = readWord(input, pos);
         auto wm = splitMode(key);
         if (wm.base == "scope") {
+            // Finalize this scope's control/perm range before children add to pools
+            if (!rangeFinalized) {
+                sc.controlEnd = result.ctrlPoolLen;
+                sc.permEnd = result.permPoolLen;
+                rangeFinalized = true;
+            }
             skipWS(input, pos);
             expect(input, pos, '{');
             hasChildren = true;
@@ -256,17 +287,17 @@ void parseScope(ref string input, ref size_t pos, ref ParseResult result,
         } else if (wm.base == "control") {
             skipWS(input, pos);
             expect(input, pos, '{');
-            assert(sc.controlCount < sc.controls.length);
-            sc.controls[sc.controlCount] = parseControl(input, pos);
-            sc.controls[sc.controlCount].mode = wm.mode;
-            sc.controlCount++;
+            assert(result.ctrlPoolLen < result.ctrlPool.length);
+            result.ctrlPool[result.ctrlPoolLen] = parseControl(input, pos);
+            result.ctrlPool[result.ctrlPoolLen].mode = wm.mode;
+            result.ctrlPoolLen++;
         } else if (wm.base == "permission") {
             skipWS(input, pos);
             expect(input, pos, '{');
-            assert(sc.permissionCount < sc.permissions.length);
-            sc.permissions[sc.permissionCount] = parsePermission(input, pos);
-            sc.permissions[sc.permissionCount].mode = wm.mode;
-            sc.permissionCount++;
+            assert(result.permPoolLen < result.permPool.length);
+            result.permPool[result.permPoolLen] = parsePermission(input, pos);
+            result.permPool[result.permPoolLen].mode = wm.mode;
+            result.permPoolLen++;
         } else {
             skipWS(input, pos);
             expect(input, pos, ':');

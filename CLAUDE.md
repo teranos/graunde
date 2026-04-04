@@ -3,4 +3,6 @@ Read source/hooks.d for control types, scope struct, and trigger builders.
 Read README.md for project overview.
 Read COUNTDOWN.md for project status.
 
+Read bench.fish for CTFE scaling limits.
+
 TDD: write a failing CTFE test before implementing. Show the test, confirm it fails, then make it pass.

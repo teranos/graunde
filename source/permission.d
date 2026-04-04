@@ -28,8 +28,10 @@ struct PermissionScope {
 // --- Permission set (built at CTFE from parsed pbt) ---
 
 struct PermissionSet {
-    PermissionScope[64] items;
-    Permission[128] permPool;
+    import count : PbtCounts;
+    import proto : pbtCounts;
+    PermissionScope[pbtCounts.totalScopes + 1] items;
+    Permission[pbtCounts.totalPerms + 1] permPool;
     size_t len;
 
     const(PermissionScope)[] opSlice() const return { return items[0 .. len]; }
@@ -44,8 +46,8 @@ PermissionSet buildPermissions(const ParseResult parsed) {
         if (ps.permissionCount == 0) continue;
 
         auto permStart = poolLen;
-        foreach (j; 0 .. ps.permissionCount) {
-            auto pp = &ps.permissions[j];
+        foreach (j; ps.permStart .. ps.permEnd) {
+            auto pp = &parsed.permPool[j];
             Permission p;
             p.name = pp.name;
             p.mode = pp.mode;
