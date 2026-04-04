@@ -1,162 +1,174 @@
-# Universal PreToolUse — auto-approved command controls.
+# Universal PreToolUse
 scope {
   event: "PreToolUse"
 
-  # "omit" strips the flag from the command before execution.
-  control {
-    name: "no-skip-hooks"
-    cmd: "git"
-    omit: "--no-verify"
-    msg: "Git hooks must not be bypassed, ever."
+  # Auto-approved command controls
+  scope {
+    # "omit" strips the flag from the command before execution.
+    control {
+      name: "no-skip-hooks"
+      cmd: "git"
+      omit: "--no-verify"
+      msg: "Git hooks must not be bypassed, ever."
+    }
+
+    control {
+      name: "short-commit-message-reminder"
+      cmd: "git add"
+      msg: "A commit typically follows. Start thinking about the commit message — focus on why, not what."
+    }
+
+    control {
+      name: "sync-main"
+      cmd: "git checkout main"
+      msg: "Summarize what happened upstream since the last pull."
+    }
+
+    control {
+      name: "ci-check"
+      cmd: "gh run list"
+      msg: "Examine the result and report whether CI passed or failed."
+    }
+
+    control {
+      name: "use-read-not-cat"
+      cmd: "cat"
+      msg: "Use the Read tool instead of cat."
+    }
+
+    control {
+      name: "pr-ready"
+      cmd: "gh pr ready"
+      msg: "This means the pr is ready to merge"
+    }
   }
 
-  control {
-    name: "short-commit-message-reminder"
-    cmd: "git add"
-    msg: "A commit typically follows. Start thinking about the commit message — focus on why, not what."
+  # Deny — hard blocks. "=" prefix means exact match (no trailing args).
+  scope {
+    decision: "deny"
+
+    control {
+      name: "no-bulk-add"
+      cmd: "=git add ."
+      msg: "Stage files by name. Do not use git add . — it bypasses binary file detection and may include unintended files."
+    }
+
+    control {
+      name: "no-bulk-add-all"
+      cmd: "=git add -A"
+      msg: "Stage files by name. Do not use git add -A — it bypasses binary file detection and may include unintended files."
+    }
+
+    control {
+      name: "no-bulk-add-all-long"
+      cmd: "=git add --all"
+      msg: "Stage files by name. Do not use git add --all — it bypasses binary file detection and may include unintended files."
+    }
   }
 
-  control {
-    name: "sync-main"
-    cmd: "git checkout main"
-    msg: "Summarize what happened upstream since the last pull."
-  }
+  # Checkpoints — require manual approval
+  scope {
+    decision: "ask"
 
-  control {
-    name: "ci-check"
-    cmd: "gh run list"
-    msg: "Examine the result and report whether CI passed or failed."
-  }
+    control {
+      name: "git-commit"
+      cmd: "git commit"
+      msg: "Commit requires manual approval"
+    }
 
-  control {
-    name: "use-read-not-cat"
-    cmd: "cat"
-    msg: "Use the Read tool instead of cat."
-  }
+    control {
+      name: "git-push-pull-first"
+      cmd: "git push"
+      msg: "If you haven't pulled since the last commit, pull first and resolve conflicts before pushing"
+    }
 
-  control {
-    name: "pr-ready"
-    cmd: "gh pr ready"
-    msg: "This means the pr is ready to merge"
-  }
-}
+    control {
+      name: "git-tag-semver"
+      cmd: "git tag"
+      msg: "Check the latest tag first and ensure the new version follows semver"
+    }
 
-# Deny — hard blocks. "=" prefix means exact match (no trailing args).
-scope {
-  decision: "deny"
-  event: "PreToolUse"
+    control {
+      name: "pr-create"
+      cmd: "gh pr create"
+      msg: "PR creation requires manual approval. Keep the description high signal — you can refine it later with gh pr edit."
+    }
 
-  control {
-    name: "no-bulk-add"
-    cmd: "=git add ."
-    msg: "Stage files by name. Do not use git add . — it bypasses binary file detection and may include unintended files."
-  }
+    control {
+      name: "pr-edit-ref-reminder"
+      cmd: "gh pr edit"
+      msg: "Reference any docs edited or created in this PR. Do not describe implementation details — the diff speaks for itself. Focus on why, not what."
+    }
 
-  control {
-    name: "no-bulk-add-all"
-    cmd: "=git add -A"
-    msg: "Stage files by name. Do not use git add -A — it bypasses binary file detection and may include unintended files."
-  }
+    control {
+      name: "git-checkout-b"
+      cmd: "git checkout -b"
+      msg: "Check main for unpushed commits and push them first. Update documentation to describe intended behavior. Ask critical design questions. Then open a PR."
+    }
 
-  control {
-    name: "no-bulk-add-all-long"
-    cmd: "=git add --all"
-    msg: "Stage files by name. Do not use git add --all — it bypasses binary file detection and may include unintended files."
-  }
-}
-
-# Checkpoints — require manual approval
-scope {
-  decision: "ask"
-  event: "PreToolUse"
-
-  control {
-    name: "git-commit"
-    cmd: "git commit"
-    msg: "Commit requires manual approval"
-  }
-
-  control {
-    name: "git-push-pull-first"
-    cmd: "git push"
-    msg: "If you haven't pulled since the last commit, pull first and resolve conflicts before pushing"
-  }
-
-  control {
-    name: "git-tag-semver"
-    cmd: "git tag"
-    msg: "Check the latest tag first and ensure the new version follows semver"
-  }
-
-  control {
-    name: "pr-create"
-    cmd: "gh pr create"
-    msg: "PR creation requires manual approval. Keep the description high signal — you can refine it later with gh pr edit."
-  }
-
-  control {
-    name: "pr-edit-ref-reminder"
-    cmd: "gh pr edit"
-    msg: "Reference any docs edited or created in this PR. Do not describe implementation details — the diff speaks for itself. Focus on why, not what."
-  }
-
-  control {
-    name: "git-checkout-b"
-    cmd: "git checkout -b"
-    msg: "Check main for unpushed commits and push them first. Update documentation to describe intended behavior. Ask critical design questions. Then open a PR."
-  }
-
-  control {
-    name: "pr-merge-checkout-main"
-    cmd: "gh pr merge"
-    msg: "After merge, checkout main and pull to sync local."
+    control {
+      name: "pr-merge-checkout-main"
+      cmd: "gh pr merge"
+      msg: "After merge, checkout main and pull to sync local."
+    }
   }
 }
 
 # Ground project-scoped
 scope {
   path: "/ground"
-  event: "PreToolUse"
 
-  control {
-    name: "install-after-build"
-    cmd: "dub build"
-    bg: true
-    msg: "Run make install to update the live hook binary."
-  }
-}
+  scope {
+    event: "PreToolUse"
 
-scope {
-  path: "/ground"
-  event: "PreToolUseFile"
-
-  control {
-    name: "control-ritual"
-    filepath: ".pbt"
-    msg: "Controls are data-driven. Before writing a trigger, query the db for real assistant messages that contain the phrase. Verify matches exist and check context. No trigger without evidence."
-  }
-}
-
-scope {
-  path: "/ground"
-  event: "PostToolUse"
-
-  control {
-    name: "build-timing"
-    cmd: "make install"
+    control {
+      name: "install-after-build"
+      cmd: "dub build"
+      bg: true
+      msg: "Run make install to update the live hook binary."
+    }
   }
 
-  control.w {
-    name: "rebuild-after-pbt-edit"
-    filepath: ".pbt"
-    msg: "Controls changed. Run make install to update the binary."
+  scope {
+    event: "PreToolUseFile"
+
+    control {
+      name: "control-ritual"
+      filepath: ".pbt"
+      msg: "Controls are data-driven. Before writing a trigger, query the db for real assistant messages that contain the phrase. Verify matches exist and check context. No trigger without evidence."
+    }
   }
 
-  permission {
-    allow: [
-      "dub build*", "dub test*", "make install*",
-      "ldc2*", "ground*"
-    ]
+  scope {
+    event: "PostToolUse"
+
+    control {
+      name: "build-timing"
+      cmd: "make install"
+    }
+
+    control.w {
+      name: "rebuild-after-pbt-edit"
+      filepath: ".pbt"
+      msg: "Controls changed. Run make install to update the binary."
+    }
+
+    permission {
+      allow: [
+        "dub build*", "dub test*", "make install*",
+        "ldc2*", "ground*"
+      ]
+    }
+  }
+
+  scope {
+    event: "UserPromptSubmit"
+
+    control {
+      name: "permission-reminder"
+      userprompt: "permission"
+      msg: "Permissions are defined in controls/permissions.pbt — not in ~/.claude/settings.json or .claude/settings.local.json. Check permissions.pbt for existing patterns before adding new ones."
+    }
   }
 }
 
@@ -222,18 +234,6 @@ scope {
 # UserPromptSubmit — empty universal set
 scope {
   event: "UserPromptSubmit"
-}
-
-# UserPromptSubmit — ground-scoped
-scope {
-  path: "/ground"
-  event: "UserPromptSubmit"
-
-  control {
-    name: "permission-reminder"
-    userprompt: "permission"
-    msg: "Permissions are defined in controls/permissions.pbt — not in ~/.claude/settings.json or .claude/settings.local.json. Check permissions.pbt for existing patterns before adding new ones."
-  }
 }
 
 # UserPromptSubmit — ground-excluded
@@ -312,39 +312,51 @@ scope {
   }
 }
 
-# Stop — QNTX-scoped
+# QNTX project-scoped
 scope {
   path: "/QNTX"
-  event: "Stop"
 
-  control {
-    name: "make-dev-includes-wasm"
-    stop: "make wasm"
-    msg: `"make dev" also rebuilds the wasm, see the Makefile.`
+  scope {
+    event: "Stop"
+
+    control {
+      name: "make-dev-includes-wasm"
+      stop: "make wasm"
+      msg: `"make dev" also rebuilds the wasm, see the Makefile.`
+    }
+
+    control {
+      name: "no-stale-binary-speculation-might"
+      stop: "binary might be stale"
+      msg: "The developer is always running the latest version. Do not speculate about stale binaries."
+    }
+
+    control {
+      name: "no-stale-binary-speculation-may"
+      stop: "binary may be stale"
+      msg: "The developer is always running the latest version. Do not speculate about stale binaries."
+    }
+
+    control {
+      name: "port-check-am-toml-877"
+      stop: ["port 877", ":877"]
+      msg: "You mentioned a default port. Check am.toml in the project root for the actual port configuration."
+    }
+
+    control {
+      name: "port-check-am-toml-8820"
+      stop: "8820"
+      msg: "You mentioned a default port. Check am.toml in the project root for the actual port configuration."
+    }
   }
 
-  control {
-    name: "no-stale-binary-speculation-might"
-    stop: "binary might be stale"
-    msg: "The developer is always running the latest version. Do not speculate about stale binaries."
-  }
+  scope {
+    event: "SessionStart"
 
-  control {
-    name: "no-stale-binary-speculation-may"
-    stop: "binary may be stale"
-    msg: "The developer is always running the latest version. Do not speculate about stale binaries."
-  }
-
-  control {
-    name: "port-check-am-toml-877"
-    stop: ["port 877", ":877"]
-    msg: "You mentioned a default port. Check am.toml in the project root for the actual port configuration."
-  }
-
-  control {
-    name: "port-check-am-toml-8820"
-    stop: "8820"
-    msg: "You mentioned a default port. Check am.toml in the project root for the actual port configuration."
+    control {
+      name: "am-toml-reminder"
+      msg: "Read am.toml in the project root and report back: port number, db path, logfile location, and enabled plugins."
+    }
   }
 }
 
@@ -356,17 +368,5 @@ scope {
     name: "stale-binary-shadow"
     check_handler: "binaryShadowed"
     msg: "/usr/local/bin/ground exists and shadows ~/.local/bin/ground — remove it with: rm /usr/local/bin/ground"
-  }
-
-}
-
-# SessionStart — QNTX-scoped
-scope {
-  path: "/QNTX"
-  event: "SessionStart"
-
-  control {
-    name: "am-toml-reminder"
-    msg: "Read am.toml in the project root and report back: port number, db path, logfile location, and enabled plugins."
   }
 }
