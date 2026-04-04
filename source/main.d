@@ -297,74 +297,8 @@ int run(ref const(char)[] outEventName, ref const(char)[] outProject, ref bool o
 
     // PostToolUse — controls + CI deferral
     if (event == HookEvent.PostToolUse) {
-        auto detail = extractCommand(input);
-        if (detail is null) detail = extractFilePath(input);
-        if (detail is null) detail = eventName;
-
-        // Check PostToolUse controls
-        if (detail !is null) {
-            import controls : postToolUseScopes;
-            foreach (ref scope_; postToolUseScopes) {
-                if (scope_.path.length > 0 && (cwd is null || !contains(cwd, scope_.path)))
-                    continue;
-                foreach (ref c; scope_.controls) {
-                    if (c.cmd.value.length > 0 && hasSegment(detail, c.cmd.value) && c.msg.value.length > 0) {
-                        // Attest the fire
-                        {
-                            import sqlite : attestControlFire;
-                            attestControlFire(null, "GroundedPostToolUse", c.name, cwd, sessionId);
-                        }
-                        fputs(`{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"`, stdout);
-                        import parse : writeJsonString;
-                        writeJsonString(c.msg.value);
-                        fputs(`"}}`, stdout);
-                        fputs("\n", stdout);
-                        return 0;
-                    }
-                }
-            }
-        }
-
-        // Check deferred PostToolUse controls
-        if (detail !is null) {
-            import controls : postToolUseDeferredScopes;
-            import hooks : scopeMatches;
-            foreach (ref scope_; postToolUseDeferredScopes) {
-                if (!scopeMatches(scope_.path, cwd))
-                    continue;
-                foreach (ref c; scope_.controls) {
-                    if (c.cmd.value.length == 0 || !hasSegment(detail, c.cmd.value))
-                        continue;
-                    // Secondary trigger pattern (if set, must also match)
-                    if (c.trigger.len > 0) {
-                        bool triggerHit = false;
-                        foreach (ref v; c.trigger.values)
-                            if (contains(detail, v)) { triggerHit = true; break; }
-                        if (!triggerHit) continue;
-                    }
-
-                    import sqlite : openDb, attestEvent, sqlite3_close, ZBuf;
-                    import deferred : writeDeferredMessage;
-                    auto db = openDb();
-                    if (db is null) continue;
-
-                    auto delay = c.defer.delayFn !is null
-                        ? c.defer.delayFn(cwd)
-                        : c.defer.delaySec;
-                    writeDeferredMessage(db, c.name, cwd, sessionId, c.defer.msg, delay);
-
-                    // Attest the fire
-                    {
-                        import sqlite : attestControlFire;
-                        attestControlFire(db, "GroundedPostToolUseDeferred", c.name, cwd, sessionId);
-                    }
-
-                    sqlite3_close(db);
-                }
-            }
-        }
-
-        return 0;
+        import posttooluse : handlePostToolUse;
+        return handlePostToolUse(input, cwd, sessionId);
     }
 
     // PostToolUseFailure — control-driven hints on failure

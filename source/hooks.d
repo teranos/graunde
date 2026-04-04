@@ -7,13 +7,10 @@ enum HookEvent {
                         // TODO: updatedInput for non-Bash tools (file_path, pattern, offset, etc.)
     PermissionRequest,  // TODO: auto-allow/deny permission dialogs
     PostToolUse,        // attested, response captured, CI nudge on git push, review nudge
-                        // TODO: tool-name matching — fires for all tools (Edit, Write, Read, Glob,
-                        //   Grep, Agent, WebFetch, WebSearch, MCP) but only Bash matched by string
+                        //   cmd and filepath matching for advisory context
+                        // TODO: tool-name filtering — restrict controls to specific tools (e.g. Edit only, not Read)
                         // TODO: decision:block with reason — corrective feedback after tool runs
-                        //   (e.g. after Write to .d file, remind to run tests)
-                        // TODO: updatedMCPToolOutput — replace MCP tool output (requires MCP in use)
                         // TODO: exit 2 — stderr fed back to Claude as feedback
-                        // TODO: continue:false — halt Claude entirely after a tool completes
                         // TODO: suppressOutput:true — hide stdout from verbose mode
     PostToolUseFailure, // trigger-matched hints on failure (e.g. wrong directory)
     Notification,       // TODO: cross-session awareness — session A completes a 4+ min task, idle_prompt
@@ -57,6 +54,10 @@ struct Trigger {
 }
 
 struct FilePath {
+    string value;
+}
+
+struct Tool {
     string value;
 }
 
@@ -124,6 +125,7 @@ Defer defer(DelayFn fn, DeliverFn deliver, string msg) {
 
 struct Control {
     string name;
+    Tool tool;
     Cmd cmd;
     Arg arg;
     Omit omit;

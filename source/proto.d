@@ -19,6 +19,7 @@ struct ParsedPermission {
 struct ParsedControl {
     string name;
     string event; // only used for top-level controls (without enclosing scope)
+    string tool;  // tool-name filter (e.g. "Edit", "Write")
     string cmd, arg, omit;
     string[16] triggers;
     ubyte triggerCount;
@@ -79,6 +80,7 @@ ScopeSet buildScopes(
             auto pc = &ps.controls[j];
             Control c;
             c.name = pc.name;
+            c.tool = Tool(pc.tool);
             c.cmd = Cmd(pc.cmd);
             c.arg = Arg(pc.arg);
             c.omit = Omit(pc.omit);
@@ -271,6 +273,7 @@ ParsedControl parseControl(ref string input, ref size_t pos) {
             case "name":            c.name = val; break;
             case "event":           c.event = val; break;
             case "cmd":             c.cmd = val; break;
+            case "tool":            c.tool = val; break;
             case "arg":             c.arg = val; break;
             case "omit":            c.omit = val; break;
             case "filepath":        c.filepath = val; break;

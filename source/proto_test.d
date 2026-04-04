@@ -367,3 +367,37 @@ static assert(ctrlTopParsed.scopes[0].path == "/");
 static assert(ctrlTopParsed.scopes[0].controlCount == 1);
 static assert(ctrlTopParsed.scopes[0].controls[0].name == "check-logs");
 static assert(ctrlTopParsed.scopes[0].controls[0].triggers[0] == "check the*log");
+
+// --- PostToolUse filepath matching ---
+
+// PostToolUse scope with filepath control (no cmd)
+enum ptuFileInput = `
+scope {
+  path: "/ground"
+  event: "PostToolUse"
+
+  control {
+    name: "rebuild-after-pbt-edit"
+    filepath: ".pbt"
+    msg: "Controls changed. Run make install to update the binary."
+  }
+}
+`;
+enum ptuFileParsed = parsePbt(ptuFileInput);
+static assert(ptuFileParsed.scopeCount == 1);
+static assert(ptuFileParsed.scopes[0].event == "PostToolUse");
+static assert(ptuFileParsed.scopes[0].controls[0].filepath == ".pbt");
+static assert(ptuFileParsed.scopes[0].controls[0].cmd == "");
+
+// buildScopes preserves filepath into PostToolUse controls
+enum ptuFileBuilt = buildScopes(ptuFileParsed, "PostToolUse");
+static assert(ptuFileBuilt.len == 1);
+static assert(ptuFileBuilt.items[0].path == "/ground");
+static assert(ptuFileBuilt.items[0].controls[0].filepath.value == ".pbt");
+static assert(ptuFileBuilt.items[0].controls[0].cmd.value == "");
+static assert(ptuFileBuilt.items[0].controls[0].msg.value == "Controls changed. Run make install to update the binary.");
+
+// contains matches filepath substring
+import matcher : contains;
+static assert(contains("/Users/me/ground/controls/permissions.pbt", ".pbt"));
+static assert(!contains("/Users/me/ground/source/main.d", ".pbt"));
