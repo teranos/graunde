@@ -1,7 +1,11 @@
-.PHONY: build test install
+.PHONY: build test install wind
 
 PREFIX ?= $(HOME)/.local
-build:
+
+wind: tools/wind.d
+	ldc2 -of=tools/wind tools/wind.d
+
+build: wind
 	time dub build --build=release
 
 test:

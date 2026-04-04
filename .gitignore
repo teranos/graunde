@@ -17,6 +17,7 @@
 # Binaries
 ground
 ground-test-application
+tools/wind
 
 # Generated
 .version
