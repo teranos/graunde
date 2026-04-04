@@ -184,9 +184,7 @@ ParseResult parsePbt(string input) {
         if (wm.base == "scope") {
             skipWS(input, pos);
             expect(input, pos, '{');
-            assert(result.scopeCount < result.scopes.length, "Scope limit reached — increase ParseResult.scopes array size in proto.d");
-            result.scopes[result.scopeCount] = parseScope(input, pos);
-            result.scopeCount++;
+            parseScope(input, pos, result, "", "");
         } else if (wm.base == "permission") {
             // Top-level permission — wrap in a scope with path "/"
             skipWS(input, pos);
@@ -221,17 +219,38 @@ ParseResult parsePbt(string input) {
 
 private:
 
-ParsedScope parseScope(ref string input, ref size_t pos) {
+void parseScope(ref string input, ref size_t pos, ref ParseResult result,
+    string parentPath, string parentDecision)
+{
     ParsedScope sc;
+    sc.path = parentPath;
+    sc.decision = parentDecision;
+    bool hasChildren = false;
+
     while (pos < input.length) {
         skipWS(input, pos);
         if (pos >= input.length) break;
         if (input[pos] == '#') { skipLine(input, pos); continue; }
-        if (input[pos] == '}') { pos++; return sc; }
+        if (input[pos] == '}') {
+            pos++;
+            // Only emit this scope if it has controls or permissions (not just children)
+            if (!hasChildren || sc.controlCount > 0 || sc.permissionCount > 0) {
+                assert(result.scopeCount < result.scopes.length,
+                    "Scope limit reached — increase ParseResult.scopes array size in proto.d");
+                result.scopes[result.scopeCount] = sc;
+                result.scopeCount++;
+            }
+            return;
+        }
 
         auto key = readWord(input, pos);
         auto wm = splitMode(key);
-        if (wm.base == "control") {
+        if (wm.base == "scope") {
+            skipWS(input, pos);
+            expect(input, pos, '{');
+            hasChildren = true;
+            parseScope(input, pos, result, sc.path, sc.decision);
+        } else if (wm.base == "control") {
             skipWS(input, pos);
             expect(input, pos, '{');
             assert(sc.controlCount < sc.controls.length);

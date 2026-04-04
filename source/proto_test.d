@@ -434,3 +434,79 @@ permission.r {
 enum permModeParsed = parsePbt(permModeInput);
 static assert(permModeParsed.scopeCount == 1);
 static assert(permModeParsed.scopes[0].permissions[0].mode == "r");
+
+// --- Nested scope tests ---
+
+// Child scopes inherit parent path
+enum nestedInput = `
+scope {
+  path: "/ground"
+
+  scope {
+    event: "PreToolUse"
+    control {
+      name: "nested-pre"
+      cmd: "dub build"
+      msg: "Build reminder"
+    }
+  }
+
+  scope {
+    event: "PostToolUse"
+    control {
+      name: "nested-post"
+      cmd: "make install"
+    }
+  }
+}
+`;
+enum nestedParsed = parsePbt(nestedInput);
+// Parent scope has no controls/event — only children become real scopes
+static assert(nestedParsed.scopeCount == 2);
+static assert(nestedParsed.scopes[0].path == "/ground");
+static assert(nestedParsed.scopes[0].event == "PreToolUse");
+static assert(nestedParsed.scopes[0].controls[0].name == "nested-pre");
+static assert(nestedParsed.scopes[1].path == "/ground");
+static assert(nestedParsed.scopes[1].event == "PostToolUse");
+static assert(nestedParsed.scopes[1].controls[0].name == "nested-post");
+
+// Child inherits path but can override with its own
+enum nestedOverrideInput = `
+scope {
+  path: "/ground"
+
+  scope {
+    path: "/other"
+    event: "Stop"
+    control {
+      name: "override-path"
+      stop: "test"
+      msg: "overridden"
+    }
+  }
+}
+`;
+enum nestedOverrideParsed = parsePbt(nestedOverrideInput);
+static assert(nestedOverrideParsed.scopeCount == 1);
+static assert(nestedOverrideParsed.scopes[0].path == "/other");
+
+// Nested scope inherits decision from parent
+enum nestedDecisionInput = `
+scope {
+  path: "/ground"
+  decision: "deny"
+
+  scope {
+    event: "PreToolUse"
+    control {
+      name: "nested-deny"
+      cmd: "rm"
+      msg: "blocked"
+    }
+  }
+}
+`;
+enum nestedDecisionParsed = parsePbt(nestedDecisionInput);
+static assert(nestedDecisionParsed.scopeCount == 1);
+static assert(nestedDecisionParsed.scopes[0].decision == "deny");
+static assert(nestedDecisionParsed.scopes[0].path == "/ground");
