@@ -174,6 +174,41 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
             return 0;
         }
 
+        // Bash — check permission allow/deny rules per segment
+        {
+            import controls : permissionScopes;
+            import permission : evaluatePermission, Decision;
+            import matcher : strip;
+
+            size_t pstart = 0;
+            size_t pi = 0;
+            while (pi <= command.length) {
+                bool pSep = (pi == command.length)
+                    || command[pi] == '|' || command[pi] == ';'
+                    || (pi + 1 < command.length && command[pi] == '&' && command[pi + 1] == '&');
+                if (pSep) {
+                    auto seg = strip(command[pstart .. pi]);
+                    if (seg.length > 0) {
+                        auto permResult = evaluatePermission(permissionScopes, cwd, toolName, seg);
+                        if (permResult.decision == Decision.deny) {
+                            writeDenyResponse(permResult.msg);
+                            return 0;
+                        }
+                        if (permResult.decision == Decision.allow) {
+                            writeResponse(command, "", "allow");
+                            return 0;
+                        }
+                    }
+                    if (pi == command.length) break;
+                    if (command[pi] == '&') pi += 2;
+                    else pi++;
+                    pstart = pi;
+                    continue;
+                }
+                pi++;
+            }
+        }
+
         return 0;
     }
 
