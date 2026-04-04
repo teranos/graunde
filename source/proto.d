@@ -6,7 +6,7 @@ import hooks;
 
 struct ParsedPermission {
     string name;
-    string tool;          // "Bash", "Write", "Edit", etc.
+    string mode;          // chmod-style mode (r/w/x/m/a), parsed from permission.r syntax
     string[16] allow;
     ubyte allowCount;
     string[16] deny;
@@ -19,7 +19,7 @@ struct ParsedPermission {
 struct ParsedControl {
     string name;
     string event; // only used for top-level controls (without enclosing scope)
-    string tool;  // tool-name filter (e.g. "Edit", "Write")
+    string mode;  // chmod-style mode (r/w/x/m/a), parsed from control.w syntax
     string cmd, arg, omit;
     string[16] triggers;
     ubyte triggerCount;
@@ -80,7 +80,7 @@ ScopeSet buildScopes(
             auto pc = &ps.controls[j];
             Control c;
             c.name = pc.name;
-            c.tool = Tool(pc.tool);
+            c.mode = Mode(pc.mode);
             c.cmd = Cmd(pc.cmd);
             c.arg = Arg(pc.arg);
             c.omit = Omit(pc.omit);
@@ -180,13 +180,14 @@ ParseResult parsePbt(string input) {
         if (input[pos] == '#') { skipLine(input, pos); continue; }
 
         auto word = readWord(input, pos);
-        if (word == "scope") {
+        auto wm = splitMode(word);
+        if (wm.base == "scope") {
             skipWS(input, pos);
             expect(input, pos, '{');
             assert(result.scopeCount < result.scopes.length, "Scope limit reached — increase ParseResult.scopes array size in proto.d");
             result.scopes[result.scopeCount] = parseScope(input, pos);
             result.scopeCount++;
-        } else if (word == "permission") {
+        } else if (wm.base == "permission") {
             // Top-level permission — wrap in a scope with path "/"
             skipWS(input, pos);
             expect(input, pos, '{');
@@ -194,10 +195,11 @@ ParseResult parsePbt(string input) {
             ParsedScope sc;
             sc.path = "/";
             sc.permissions[0] = parsePermission(input, pos);
+            sc.permissions[0].mode = wm.mode;
             sc.permissionCount = 1;
             result.scopes[result.scopeCount] = sc;
             result.scopeCount++;
-        } else if (word == "control") {
+        } else if (wm.base == "control") {
             // Top-level control — wrap in a scope with path "/"
             skipWS(input, pos);
             expect(input, pos, '{');
@@ -205,6 +207,7 @@ ParseResult parsePbt(string input) {
             ParsedScope sc;
             sc.path = "/";
             sc.controls[0] = parseControl(input, pos);
+            sc.controls[0].mode = wm.mode;
             sc.event = sc.controls[0].event; // inherit event from control
             sc.controlCount = 1;
             result.scopes[result.scopeCount] = sc;
@@ -227,17 +230,20 @@ ParsedScope parseScope(ref string input, ref size_t pos) {
         if (input[pos] == '}') { pos++; return sc; }
 
         auto key = readWord(input, pos);
-        if (key == "control") {
+        auto wm = splitMode(key);
+        if (wm.base == "control") {
             skipWS(input, pos);
             expect(input, pos, '{');
             assert(sc.controlCount < sc.controls.length);
             sc.controls[sc.controlCount] = parseControl(input, pos);
+            sc.controls[sc.controlCount].mode = wm.mode;
             sc.controlCount++;
-        } else if (key == "permission") {
+        } else if (wm.base == "permission") {
             skipWS(input, pos);
             expect(input, pos, '{');
             assert(sc.permissionCount < sc.permissions.length);
             sc.permissions[sc.permissionCount] = parsePermission(input, pos);
+            sc.permissions[sc.permissionCount].mode = wm.mode;
             sc.permissionCount++;
         } else {
             skipWS(input, pos);
@@ -273,7 +279,7 @@ ParsedControl parseControl(ref string input, ref size_t pos) {
             case "name":            c.name = val; break;
             case "event":           c.event = val; break;
             case "cmd":             c.cmd = val; break;
-            case "tool":            c.tool = val; break;
+            // "tool" removed — use control.w/r/x/m/a syntax instead
             case "arg":             c.arg = val; break;
             case "omit":            c.omit = val; break;
             case "filepath":        c.filepath = val; break;
@@ -349,7 +355,7 @@ ParsedPermission parsePermission(ref string input, ref size_t pos) {
 
         switch (key) {
             case "name": p.name = val; break;
-            case "tool": p.tool = val; break;
+            // "tool" removed — use permission.r/w/x syntax instead
             case "msg":  p.msg = val; break;
             case "allow":
                 if (val is null) {
@@ -426,6 +432,15 @@ void skipLine(ref string s, ref size_t pos) {
 void expect(ref string s, ref size_t pos, char ch) {
     assert(pos < s.length && s[pos] == ch);
     pos++;
+}
+
+// Split "control.rw" into ("control", "rw"). No dot returns (word, "").
+struct WordMode { string base; string mode; }
+WordMode splitMode(string word) {
+    foreach (i; 0 .. word.length) {
+        if (word[i] == '.') return WordMode(word[0 .. i], word[i + 1 .. $]);
+    }
+    return WordMode(word, "");
 }
 
 string readWord(ref string s, ref size_t pos) {

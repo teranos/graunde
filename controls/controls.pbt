@@ -146,15 +146,13 @@ scope {
     cmd: "make install"
   }
 
-  control {
+  control.w {
     name: "rebuild-after-pbt-edit"
-    tool: "Edit"
     filepath: ".pbt"
     msg: "Controls changed. Run make install to update the binary."
   }
 
   permission {
-    tool: "Bash"
     allow: [
       "dub build*", "dub test*", "make install*",
       "ldc2*", "ground*"

@@ -13,7 +13,7 @@ struct PatternList {
 
 struct Permission {
     string name;
-    string tool;       // "Bash", "Write", "Edit", etc.
+    string mode;
     PatternList allow;
     PatternList deny;
     PatternList ask;
@@ -48,7 +48,7 @@ PermissionSet buildPermissions(const ParseResult parsed) {
             auto pp = &ps.permissions[j];
             Permission p;
             p.name = pp.name;
-            p.tool = pp.tool;
+            p.mode = pp.mode;
             p.msg = pp.msg;
 
             p.allow._buf = pp.allow;
@@ -152,7 +152,11 @@ PermissionResult evaluatePermission(
         if (!scopeMatches(sc.path, cwd)) continue;
 
         foreach (ref p; sc.permissions) {
-            if (p.tool.length > 0 && p.tool != toolName) continue;
+            if (p.mode.length > 0) {
+                import posttooluse : modeMatches;
+                if (!modeMatches(p.mode, toolName)) continue;
+            }
+            // no mode = match all tools
 
             // Bash: match against stripped command with wildcardContains
             // File-path tools: match against raw path with permMatch
@@ -197,7 +201,6 @@ enum testPermPbt = `
 scope {
   path: "/"
   permission {
-    tool: "Bash"
     allow: ["go build*", "go test*"]
     deny: ["*rm -rf*"]
     ask: ["*DELETE*"]
@@ -208,7 +211,6 @@ scope {
 scope {
   path: "/only-here"
   permission {
-    tool: "Bash"
     allow: ["npm run*"]
   }
 }
@@ -219,7 +221,7 @@ enum testPermSet = buildPermissions(testPermParsed);
 static assert(testPermSet.len == 2);
 static assert(testPermSet.items[0].path == "/");
 static assert(testPermSet.items[0].permissions.length == 1);
-static assert(testPermSet.items[0].permissions[0].tool == "Bash");
+static assert(testPermSet.items[0].permissions[0].mode == "");
 static assert(testPermSet.items[0].permissions[0].allow.len == 2);
 static assert(testPermSet.items[0].permissions[0].deny.len == 1);
 static assert(testPermSet.items[0].permissions[0].ask.len == 1);
@@ -241,7 +243,7 @@ static assert(r3.msg == "Destructive op");
 enum r4 = evaluatePermission(testPermSet[], "/home/user/project", "Bash", "sqlite3 db DELETE FROM foo");
 static assert(r4.decision == Decision.ask);
 
-// Tool mismatch — Write tool, no Bash permissions apply
+// No mode but Write tool — command patterns don't match file paths
 enum r5 = evaluatePermission(testPermSet[], "/home/user/project", "Write", "go build");
 static assert(r5.decision == Decision.none);
 
@@ -278,12 +280,10 @@ scope {
   path: "/"
   permission {
     name: "go-toolchain"
-    tool: "Bash"
     allow: ["go build*", "go test*"]
   }
   permission {
     name: "destructive-sql"
-    tool: "Bash"
     allow: ["sqlite3*"]
     ask: ["sqlite3*DELETE*"]
   }
@@ -309,8 +309,7 @@ static assert(n3.decision == Decision.none);
 enum pathPermPbt = `
 scope {
   path: "/"
-  permission {
-    tool: "Read"
+  permission.r {
     deny: [".env", ".env.*", "secrets/*"]
     msg: "Secrets are off-limits"
   }

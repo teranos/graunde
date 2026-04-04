@@ -227,7 +227,6 @@ scope {
   path: "/"
 
   permission {
-    tool: "Bash"
     allow: ["go build*", "go test*", "cargo build*"]
     deny: ["*rm -rf*", "*--force*"]
     msg: "Destructive operations blocked"
@@ -238,7 +237,7 @@ enum permParsed = parsePbt(permInput);
 static assert(permParsed.scopeCount == 1);
 static assert(permParsed.scopes[0].path == "/");
 static assert(permParsed.scopes[0].permissionCount == 1);
-static assert(permParsed.scopes[0].permissions[0].tool == "Bash");
+static assert(permParsed.scopes[0].permissions[0].mode == "");
 static assert(permParsed.scopes[0].permissions[0].allowCount == 3);
 static assert(permParsed.scopes[0].permissions[0].allow[0] == "go build*");
 static assert(permParsed.scopes[0].permissions[0].allow[1] == "go test*");
@@ -253,7 +252,6 @@ enum permFullInput = `
 scope {
   path: "/"
   permission {
-    tool: "Bash"
     allow: ["sqlite3*"]
     ask: ["*DELETE*", "*DROP*"]
     deny: ["*rm -rf*"]
@@ -281,7 +279,6 @@ scope {
   }
 
   permission {
-    tool: "Bash"
     allow: ["npm run*"]
   }
 }
@@ -290,7 +287,7 @@ enum permMixedParsed = parsePbt(permMixedInput);
 static assert(permMixedParsed.scopes[0].controlCount == 1);
 static assert(permMixedParsed.scopes[0].controls[0].name == "test-ctrl");
 static assert(permMixedParsed.scopes[0].permissionCount == 1);
-static assert(permMixedParsed.scopes[0].permissions[0].tool == "Bash");
+static assert(permMixedParsed.scopes[0].permissions[0].mode == "");
 static assert(permMixedParsed.scopes[0].permissions[0].allow[0] == "npm run*");
 
 // Multiple permissions in one scope
@@ -298,11 +295,9 @@ enum permMultiInput = `
 scope {
   path: "/"
   permission {
-    tool: "Bash"
     allow: ["*sleep*", "*say*"]
   }
   permission {
-    tool: "Bash"
     deny: ["*rm -rf*"]
     msg: "No destructive ops"
   }
@@ -317,12 +312,12 @@ static assert(permMultiParsed.scopes[0].permissions[1].msg == "No destructive op
 // Top-level permission (no scope) — defaults to path "/"
 enum permTopLevelInput = `
 permission {
-  tool: "Bash"
+
   allow: ["go build*", "make*"]
 }
 
 permission {
-  tool: "Bash"
+
   deny: ["*--force*"]
   msg: "No force pushes"
 }
@@ -342,7 +337,7 @@ enum permTopParsed = parsePbt(permTopLevelInput);
 static assert(permTopParsed.scopeCount == 3);
 static assert(permTopParsed.scopes[0].path == "/");
 static assert(permTopParsed.scopes[0].permissionCount == 1);
-static assert(permTopParsed.scopes[0].permissions[0].tool == "Bash");
+static assert(permTopParsed.scopes[0].permissions[0].mode == "");
 static assert(permTopParsed.scopes[0].permissions[0].allowCount == 2);
 static assert(permTopParsed.scopes[0].permissions[0].allow[0] == "go build*");
 static assert(permTopParsed.scopes[1].path == "/");
@@ -401,3 +396,41 @@ static assert(ptuFileBuilt.items[0].controls[0].msg.value == "Controls changed. 
 import matcher : contains;
 static assert(contains("/Users/me/ground/controls/permissions.pbt", ".pbt"));
 static assert(!contains("/Users/me/ground/source/main.d", ".pbt"));
+
+// --- chmod-style mode syntax ---
+
+enum modeInput = `
+scope {
+  path: "/ground"
+  event: "PostToolUse"
+
+  control.w {
+    name: "rebuild-after-pbt-edit"
+    filepath: ".pbt"
+    msg: "Controls changed. Run make install."
+  }
+
+  control.rw {
+    name: "pbt-access"
+    filepath: ".pbt"
+    msg: "Touching controls."
+  }
+}
+`;
+enum modeParsed = parsePbt(modeInput);
+static assert(modeParsed.scopeCount == 1);
+static assert(modeParsed.scopes[0].controls[0].name == "rebuild-after-pbt-edit");
+static assert(modeParsed.scopes[0].controls[0].mode == "w");
+static assert(modeParsed.scopes[0].controls[1].name == "pbt-access");
+static assert(modeParsed.scopes[0].controls[1].mode == "rw");
+
+// permission with mode
+enum permModeInput = `
+permission.r {
+  deny: [".env", "secrets/*"]
+  msg: "Secrets are off-limits"
+}
+`;
+enum permModeParsed = parsePbt(permModeInput);
+static assert(permModeParsed.scopeCount == 1);
+static assert(permModeParsed.scopes[0].permissions[0].mode == "r");

@@ -57,7 +57,7 @@ struct FilePath {
     string value;
 }
 
-struct Tool {
+struct Mode {
     string value;
 }
 
@@ -125,7 +125,7 @@ Defer defer(DelayFn fn, DeliverFn deliver, string msg) {
 
 struct Control {
     string name;
-    Tool tool;
+    Mode mode;
     Cmd cmd;
     Arg arg;
     Omit omit;
