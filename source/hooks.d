@@ -198,6 +198,8 @@ Control control(string name, Cmd c, Trigger t, Defer d) {
 struct Scope {
     string[8] paths;
     ubyte pathCount;
+    string[8] edited;
+    ubyte editedCount;
     string decision;
     const(Control)[] controls;
 }

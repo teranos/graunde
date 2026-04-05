@@ -141,6 +141,25 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
             foreach (ref sc; stopScopes) {
                 if (!scopeMatches(sc, cwd))
                     continue;
+                // edited: scope gate — check session edit history
+                if (sc.editedCount > 0) {
+                    import db : editAttestationContains, editAttestationOutside;
+                    const(char)[][8] exclPats;
+                    size_t exclCount;
+                    bool inclusiveFailed;
+                    foreach (ei; 0 .. sc.editedCount) {
+                        auto ep = sc.edited[ei];
+                        if (ep.length > 0 && ep[0] == '!') {
+                            exclPats[exclCount++] = ep[1 .. $];
+                        } else {
+                            if (!editAttestationContains(db, ep, sessionId))
+                                inclusiveFailed = true;
+                        }
+                    }
+                    if (inclusiveFailed) continue;
+                    if (exclCount > 0 && editAttestationOutside(db, exclPats.ptr, exclCount, sessionId))
+                        continue;
+                }
                 foreach (ref c; sc.controls) {
                     if (c.trigger.len == 0) continue;
                     bool matched = false;

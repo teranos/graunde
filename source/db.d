@@ -218,6 +218,75 @@ bool fileAttestationExists(sqlite3* db, const(char)[] filename, const(char)[] se
     return !compacted;
 }
 
+// Check if session has Write/Edit attestations matching a path pattern.
+// pattern is a substring match against tool_input.file_path (like contains).
+bool editAttestationContains(sqlite3* db, const(char)[] pattern, const(char)[] sessionId) {
+    __gshared ZBuf ctx, filePat;
+
+    ctx.reset();
+    ctx.put("%session:");
+    ctx.put(sessionId);
+    ctx.put("%");
+
+    filePat.reset();
+    filePat.put("%");
+    filePat.put(pattern);
+    filePat.put("%");
+
+    enum sql = "SELECT 1 FROM attestations WHERE json_extract(predicates, '$[0]') = 'PostToolUse' AND contexts LIKE ?1 AND json_extract(attributes, '$.tool_name') IN ('Write', 'Edit') AND json_extract(attributes, '$.tool_input.file_path') LIKE ?2 LIMIT 1\0";
+
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
+        return false;
+
+    sqlite3_bind_text(stmt, 1, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, filePat.ptr(), cast(int) filePat.len, SQLITE_TRANSIENT);
+
+    bool found = sqlite3_step(stmt) == SQLITE_ROW;
+    sqlite3_finalize(stmt);
+    return found;
+}
+
+// Check if session has Write/Edit attestations that DON'T match ANY of the given patterns.
+// Used for subtractive edited: scope — returns true if edits exist outside the listed paths.
+bool editAttestationOutside(sqlite3* db, const(char)[]* patterns, size_t patCount, const(char)[] sessionId) {
+    __gshared ZBuf ctx, sqlBuf;
+
+    ctx.reset();
+    ctx.put("%session:");
+    ctx.put(sessionId);
+    ctx.put("%");
+
+    // Build: SELECT 1 FROM attestations WHERE ... AND file_path NOT LIKE %p1% AND NOT LIKE %p2% ...
+    sqlBuf.reset();
+    sqlBuf.put("SELECT 1 FROM attestations WHERE json_extract(predicates, '$[0]') = 'PostToolUse' AND contexts LIKE ?1 AND json_extract(attributes, '$.tool_name') IN ('Write', 'Edit')");
+    foreach (i; 0 .. patCount) {
+        sqlBuf.put(" AND json_extract(attributes, '$.tool_input.file_path') NOT LIKE ?");
+        sqlBuf.putChar(cast(char)('2' + i));
+    }
+    sqlBuf.put(" LIMIT 1");
+    sqlBuf.putChar('\0');
+
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sqlBuf.ptr(), -1, &stmt, null) != SQLITE_OK)
+        return false;
+
+    sqlite3_bind_text(stmt, 1, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
+
+    __gshared ZBuf[8] patBufs;
+    foreach (i; 0 .. patCount) {
+        patBufs[i].reset();
+        patBufs[i].put("%");
+        patBufs[i].put(patterns[i]);
+        patBufs[i].put("%");
+        sqlite3_bind_text(stmt, cast(int)(2 + i), patBufs[i].ptr(), cast(int) patBufs[i].len, SQLITE_TRANSIENT);
+    }
+
+    bool found = sqlite3_step(stmt) == SQLITE_ROW;
+    sqlite3_finalize(stmt);
+    return found;
+}
+
 public import git : cwdTail, buildSubject, getBranch;
 
 

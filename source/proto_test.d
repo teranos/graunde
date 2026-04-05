@@ -535,3 +535,56 @@ enum nestedDecisionParsed = parsePbt(nestedDecisionInput);
 static assert(nestedDecisionParsed.scopeCount == 1);
 static assert(nestedDecisionParsed.scopes[0].decision == "deny");
 static assert(nestedDecisionParsed.scopes[0].paths[0] == "/ground");
+
+// --- edited: scope field ---
+
+// Simple edited (no !) — existence check
+enum editedSimpleInput = `
+scope {
+  edited: ["*.sql"]
+  event: "Stop"
+
+  control {
+    name: "run-migrations"
+    stop: "migrate"
+    msg: "Run migrations"
+  }
+}
+`;
+enum editedSimpleParsed = parsePbt(editedSimpleInput);
+static assert(editedSimpleParsed.scopeCount == 1);
+static assert(editedSimpleParsed.scopes[0].editedCount == 1);
+static assert(editedSimpleParsed.scopes[0].edited[0] == "*.sql");
+static assert(editedSimpleParsed.scopes[0].event == "Stop");
+
+// Nested: outer path, inner edited with ! (subtractive)
+enum editedNestedInput = `
+scope {
+  path: "/QNTX"
+
+  scope {
+    edited: ["!/ctp/", "!/qntx-plugins/", "!/web/"]
+    event: "Stop"
+
+    control {
+      name: "make-dev-unnecessary"
+      stop: "make dev"
+      msg: "No server edits"
+    }
+  }
+}
+`;
+enum editedNestedParsed = parsePbt(editedNestedInput);
+static assert(editedNestedParsed.scopeCount == 1);
+static assert(editedNestedParsed.scopes[0].paths[0] == "/QNTX");
+static assert(editedNestedParsed.scopes[0].editedCount == 3);
+static assert(editedNestedParsed.scopes[0].edited[0] == "!/ctp/");
+static assert(editedNestedParsed.scopes[0].edited[1] == "!/qntx-plugins/");
+static assert(editedNestedParsed.scopes[0].edited[2] == "!/web/");
+
+// buildScopes preserves edited on Scope
+enum editedBuilt = buildScopes(editedNestedParsed, "Stop");
+static assert(editedBuilt.len == 1);
+static assert(editedBuilt.items[0].editedCount == 3);
+static assert(editedBuilt.items[0].edited[0] == "!/ctp/");
+static assert(editedBuilt.items[0].edited[1] == "!/qntx-plugins/");
