@@ -260,6 +260,12 @@ scope {
   }
 
   control {
+    name: "lazy-curl"
+    stop: "test*curl*http"
+    msg: "You have Bash. Run the curl yourself instead of suggesting the user do it."
+  }
+
+  control {
     name: "ego-death-effective-fix"
     stop: "The most effective fix is"
     msg: "You made a strong claim — according to whom? Ground it in verification or real facts."
