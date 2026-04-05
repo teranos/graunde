@@ -171,8 +171,8 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
             foreach (ref f; projectFiles) {
                 if (!contains(lastMsg, f)) continue;
 
-                import db : readAttestationExists, attestationExists, attestControlFire;
-                if (readAttestationExists(db, f, sessionId)) continue;
+                import db : fileAttestationExists, attestationExists, attestControlFire;
+                if (fileAttestationExists(db, f, sessionId)) continue;
 
                 // Build dedup key: "unread-file-claim:<filename>"
                 __gshared ZBuf dedupKey;

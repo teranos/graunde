@@ -119,7 +119,8 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
                 bool isMsgOnly = c.arg.value.length == 0 && c.omit.value.length == 0;
 
                 if (isMsgOnly) {
-                    bool alreadyFired = db !is null &&
+                    // Deny controls always show their message — no dedup
+                    bool alreadyFired = m.decision != "deny" && db !is null &&
                         attestationExists(db, "GroundedPreToolUse", c.name, sessionId);
 
                     if (!alreadyFired) {

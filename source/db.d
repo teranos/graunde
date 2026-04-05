@@ -167,9 +167,10 @@ bool attestationExists(sqlite3* db, const(char)[] groundedPredicate, const(char)
     return !compacted;
 }
 
-// Check if a Read tool attestation exists for a filename in this session.
-// Searches PostToolUse attestations where attributes contain "Read" and the filename.
-bool readAttestationExists(sqlite3* db, const(char)[] filename, const(char)[] sessionId) {
+// Check if a Read/Write/Edit attestation exists for a filename in this session.
+// Any of these tools means Claude has seen or produced the file contents.
+// Matches against tool_input.file_path to avoid false positives from file contents.
+bool fileAttestationExists(sqlite3* db, const(char)[] filename, const(char)[] sessionId) {
     __gshared ZBuf ctx, filePat;
 
     ctx.reset();
@@ -177,12 +178,14 @@ bool readAttestationExists(sqlite3* db, const(char)[] filename, const(char)[] se
     ctx.put(sessionId);
     ctx.put("%");
 
+    // Match file_path ending with the filename (covers absolute paths)
     filePat.reset();
-    filePat.put("%");
+    filePat.put("%/");
     filePat.put(filename);
     filePat.put("%");
 
-    enum sql = "SELECT 1 FROM attestations WHERE json_extract(predicates, '$[0]') = 'PostToolUse' AND contexts LIKE ?1 AND attributes LIKE '%\"Read\"%' AND attributes LIKE ?2 LIMIT 1\0";
+    // Find the most recent matching file attestation
+    enum sql = "SELECT rowid FROM attestations WHERE json_extract(predicates, '$[0]') = 'PostToolUse' AND contexts LIKE ?1 AND json_extract(attributes, '$.tool_name') IN ('Read', 'Write', 'Edit') AND json_extract(attributes, '$.tool_input.file_path') LIKE ?2 ORDER BY rowid DESC LIMIT 1\0";
 
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) != SQLITE_OK)
@@ -192,8 +195,27 @@ bool readAttestationExists(sqlite3* db, const(char)[] filename, const(char)[] se
     sqlite3_bind_text(stmt, 2, filePat.ptr(), cast(int) filePat.len, SQLITE_TRANSIENT);
 
     bool found = sqlite3_step(stmt) == SQLITE_ROW;
+    if (!found) {
+        sqlite3_finalize(stmt);
+        return false;
+    }
+
+    auto fileRowid = sqlite3_column_int64(stmt, 0);
     sqlite3_finalize(stmt);
-    return found;
+
+    // Check if a compaction happened after — invalidates the attestation
+    enum compactSql = "SELECT 1 FROM attestations WHERE json_extract(predicates, '$[0]') = 'PreCompact' AND contexts LIKE ?1 AND rowid > ?2 LIMIT 1\0";
+    sqlite3_stmt* compactStmt;
+    if (sqlite3_prepare_v2(db, compactSql.ptr, -1, &compactStmt, null) != SQLITE_OK)
+        return true; // can't check, assume valid
+
+    sqlite3_bind_text(compactStmt, 1, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(compactStmt, 2, fileRowid);
+
+    bool compacted = sqlite3_step(compactStmt) == SQLITE_ROW;
+    sqlite3_finalize(compactStmt);
+
+    return !compacted;
 }
 
 public import git : cwdTail, buildSubject, getBranch;
