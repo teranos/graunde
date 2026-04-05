@@ -85,6 +85,12 @@ void printVersion() {
         }
 }
 
+size_t argLen(const(char)* ptr) {
+    size_t len = 0;
+    while (ptr[len] != 0) len++;
+    return len;
+}
+
 void printDuration(long t0) {
     auto elapsed = usecNow() - t0;
     auto ms = elapsed / 1000;
@@ -149,7 +155,15 @@ void recordTiming(long elapsedUs, const(char)[] hookEvent, const(char)[] project
     sqlite3_close(db);
 }
 
-extern (C) int main() {
+extern (C) int main(int argc, const(char)** argv) {
+    // CLI subcommand dispatch — ground shovel <event> <pattern>
+    if (argc >= 2) {
+        import shovel : handleShovel;
+        const(char)[] cmd = argv[1][0 .. argLen(argv[1])];
+        if (cmd == "shovel")
+            return handleShovel(argc, argv);
+    }
+
     if (isatty(0)) {
         printVersion();
         fputs(" — Ground Control for Claude Code\n", stderr);
