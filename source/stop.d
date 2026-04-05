@@ -182,13 +182,13 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
 
     // Unread file claim detection — scan assistant message for project files not Read this session
     {
-        import matcher : contains;
+        import matcher : containsExact;
         import controls : projectFiles;
         import hooks : scopeMatches;
         auto lastMsg = extractLastAssistantMessage(input);
         if (lastMsg !is null && projectFiles.length > 0) {
             foreach (ref f; projectFiles) {
-                if (!contains(lastMsg, f)) continue;
+                if (!containsExact(lastMsg, f)) continue;
 
                 import db : fileAttestationExists, attestationExists, attestControlFire;
                 if (fileAttestationExists(db, f, sessionId)) continue;

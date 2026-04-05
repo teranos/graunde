@@ -47,6 +47,16 @@ bool contains(const(char)[] haystack, const(char)[] needle) {
 }
 
 
+bool containsExact(const(char)[] haystack, const(char)[] needle) {
+    if (needle.length == 0) return true;
+    if (needle.length > haystack.length) return false;
+    foreach (i; 0 .. haystack.length - needle.length + 1) {
+        if (haystack[i .. i + needle.length] == needle)
+            return true;
+    }
+    return false;
+}
+
 ptrdiff_t indexOf(const(char)[] haystack, const(char)[] needle) {
     if (needle.length == 0) return 0;
     if (needle.length > haystack.length) return -1;

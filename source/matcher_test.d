@@ -1,7 +1,7 @@
 module matcher_test;
 
 import matcher : stripQuoted, checkCommand, checkAllCommands, commandMatch,
-                 hasSegment, applyArg, applyOmit, wildcardContains;
+                 hasSegment, applyArg, applyOmit, wildcardContains, containsExact;
 
 // --- stripQuoted tests ---
 
@@ -229,6 +229,15 @@ unittest {
     assert(results.matches[0].control.name == "git-push-pull-first");
     assert(results.matches[1].control.name == "git-checkout-b");
 }
+
+// --- containsExact (case-sensitive) tests ---
+
+static assert(containsExact("LICENSE", "LICENSE"));
+static assert(!containsExact("Licenses & certifications", "LICENSE"));
+static assert(containsExact("the LICENSE file", "LICENSE"));
+static assert(!containsExact("license", "LICENSE"));
+static assert(containsExact("README.md", "README.md"));
+static assert(!containsExact("readme.md", "README.md"));
 
 // --- Wildcard matching tests ---
 
