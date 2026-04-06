@@ -43,8 +43,6 @@ DeliverFn resolveDeliver(string name) {
 private static immutable _preToolSet = buildScopes!(resolveCheck, resolveDelay, resolveDeliver)(allParsed, "PreToolUse");
 static immutable allScopes = _preToolSet.items[0 .. _preToolSet.len];
 
-private static immutable _fileSet = buildScopes!(resolveCheck, resolveDelay, resolveDeliver)(allParsed, "PreToolUseFile");
-static immutable fileScopes = _fileSet.items[0 .. _fileSet.len];
 
 private static immutable _upSet = buildScopes(allParsed, "UserPromptSubmit");
 static immutable userPromptScopes = _upSet.items[0 .. _upSet.len];

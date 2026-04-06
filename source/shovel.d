@@ -11,7 +11,6 @@ const(char)[] fieldForEvent(const(char)[] event) {
     if (eq(event, "UserPromptSubmit"))   return "$.prompt";
     if (eq(event, "PreToolUse"))         return "$.tool_input.command";
     if (eq(event, "PostToolUse"))        return "$.tool_input.command";
-    if (eq(event, "PreToolUseFile"))     return "$.tool_input.file_path";
     if (eq(event, "PermissionRequest"))  return "$.tool_input.command";
     return null;
 }

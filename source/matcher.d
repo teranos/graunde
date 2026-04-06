@@ -361,7 +361,7 @@ struct FileMatch {
 // Scans file-path controls. Composes all matching controls — concatenates messages,
 // most restrictive decision wins.
 FileMatch checkFilePath(const(char)[] filePath, const(char)[] cwd) {
-    import controls : fileScopes;
+    import controls : allScopes;
 
     __gshared Buf msgBuf;
     msgBuf = Buf.init;
@@ -369,7 +369,7 @@ FileMatch checkFilePath(const(char)[] filePath, const(char)[] cwd) {
     const(char)[] decision;
     const(char)[] firstName;
 
-    foreach (ref sc; fileScopes) {
+    foreach (ref sc; allScopes) {
         if (!scopeMatches(sc, cwd))
             continue;
         foreach (ref c; sc.controls) {

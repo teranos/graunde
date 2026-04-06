@@ -237,7 +237,7 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
     // File-path controls (advisory context)
     // TODO: updatedInput for non-Bash tools (run_in_background, timeout, new_description)
     if (filePath !is null) {
-        import controls : fileScopes;
+        import controls : allScopes;
         import hooks : scopeMatches;
         import db : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;
 
@@ -246,7 +246,7 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
         fileMsgBuf = Buf.init;
         const(char)[] fileDecision;
 
-        foreach (ref sc; fileScopes) {
+        foreach (ref sc; allScopes) {
             if (!scopeMatches(sc, cwd)) continue;
             foreach (ref c; sc.controls) {
                 if (c.filepath.value.length == 0 && c.sessionstart.check is null) continue;

@@ -114,9 +114,9 @@ scope {
   }
 }
 
-# Universal PreToolUseFile
+# Universal file-path controls
 scope {
-  event: "PreToolUseFile"
+  event: "PreToolUse"
 
   control {
     name: "strikethrough-verified"
@@ -142,7 +142,7 @@ scope {
   }
 
   scope {
-    event: "PreToolUseFile"
+    event: "PreToolUse"
 
     control {
       name: "control-ritual"
