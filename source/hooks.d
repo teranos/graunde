@@ -100,7 +100,7 @@ struct UserPrompt {
     string value() const { return len > 0 ? _buf[0] : ""; }
 }
 
-alias CheckFn = bool function(const(char)[] cwd);
+alias CheckFn = bool function(const(char)[] cwd, const(char)[] input);
 
 struct SessionStartTrigger {
     CheckFn check;     // null = always fire

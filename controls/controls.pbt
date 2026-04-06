@@ -114,6 +114,18 @@ scope {
   }
 }
 
+# Universal PreToolUseFile
+scope {
+  event: "PreToolUseFile"
+
+  control {
+    name: "strikethrough-verified"
+    filepath: ".md"
+    check_handler: "strikethrough"
+    msg: "Strikethrough = verified. Was this tested end-to-end and confirmed with the user?"
+  }
+}
+
 # Ground project-scoped
 scope {
   path: "/ground"

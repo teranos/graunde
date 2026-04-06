@@ -200,7 +200,7 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
             if (!scopeMatches(sc, cwd))
                 continue;
             foreach (ref c; sc.controls) {
-                if (c.sessionstart.check !is null && !c.sessionstart.check(cwd))
+                if (c.sessionstart.check !is null && !c.sessionstart.check(cwd, null))
                     continue;
 
                 // Interval check — skip if fired too recently

@@ -14,6 +14,7 @@ enum allParsed = parsePbt(import(".ctfe/sand"));
 CheckFn resolveCheck(string name) {
     switch (name) {
         case "binaryShadowed": return &binaryShadowed;
+        case "strikethrough": return &strikethroughCheck;
         default: return null;
     }
 }
@@ -40,7 +41,7 @@ DeliverFn resolveDeliver(string name) {
 private static immutable _preToolSet = buildScopes!(resolveCheck, resolveDelay, resolveDeliver)(allParsed, "PreToolUse");
 static immutable allScopes = _preToolSet.items[0 .. _preToolSet.len];
 
-private static immutable _fileSet = buildScopes(allParsed, "PreToolUseFile");
+private static immutable _fileSet = buildScopes!(resolveCheck, resolveDelay, resolveDeliver)(allParsed, "PreToolUseFile");
 static immutable fileScopes = _fileSet.items[0 .. _fileSet.len];
 
 private static immutable _upSet = buildScopes(allParsed, "UserPromptSubmit");
@@ -94,7 +95,17 @@ const(char)[] ciDeliver(const(char)[] cwd) {
 
 extern (C) int access(const(char)* path, int mode);
 
-bool binaryShadowed(const(char)[] cwd) {
+bool strikethroughCheck(const(char)[] cwd, const(char)[] input) {
+    import parse : extractNewString, extractToolName;
+    auto toolName = extractToolName(input);
+    if (toolName != "Edit") return false;
+    auto newString = extractNewString(input);
+    if (newString is null) return false;
+    import matcher : contains;
+    return contains(newString, "~~");
+}
+
+bool binaryShadowed(const(char)[] cwd, const(char)[] input) {
     enum F_OK = 0;
     return access("/usr/local/bin/ground\0".ptr, F_OK) == 0;
 }

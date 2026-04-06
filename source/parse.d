@@ -111,6 +111,11 @@ const(char)[] extractFilePath(const(char)[] json) {
     return extractJsonString(json, `"file_path"`, &buf[0], buf.length);
 }
 
+const(char)[] extractNewString(const(char)[] json) {
+    __gshared char[16384] buf = 0;
+    return extractJsonString(json, `"new_string"`, &buf[0], buf.length);
+}
+
 const(char)[] extractUrl(const(char)[] json) {
     __gshared char[4096] buf = 0;
     return extractJsonString(json, `"url"`, &buf[0], buf.length);
