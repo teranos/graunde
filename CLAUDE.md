@@ -1,5 +1,6 @@
-Read controls/controls.d for how controls and scopes work.
 Read source/hooks.d for control types, scope struct, and trigger builders.
+Read source/controls.d for CTFE wiring — how pbt becomes static immutable scope arrays.
+Read source/control_handlers.d for check, delay, and deliver handler implementations.
 Read README.md for project overview.
 Read COUNTDOWN.md for project status.
 
