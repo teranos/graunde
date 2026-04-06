@@ -110,7 +110,8 @@ const(char)[] stripGitDashC(const(char)[] segment) {
 // If cmd starts with '*', uses wildcardContains for substring/wildcard matching.
 // If cmd starts with '=', requires exact match (no trailing content).
 bool commandMatch(const(char)[] segment, const(char)[] cmd) {
-    if (cmd.length > 0 && cmd[0] == '*')
+    if (cmd.length == 0) return false;
+    if (cmd[0] == '*')
         return wildcardContains(segment, cmd);
     if (cmd.length > 0 && cmd[0] == '=') {
         auto exact = cmd[1 .. $];
