@@ -22,7 +22,7 @@ static assert(!postToolUseMatch(fpCtrl, null, null));
 static assert(modeMatches("r", "Read"));
 static assert(modeMatches("r", "Glob"));
 static assert(modeMatches("r", "Grep"));
-static assert(modeMatches("r", "WebFetch"));
+static assert(modeMatches("r", "LSP"));
 static assert(modeMatches("w", "Edit"));
 static assert(modeMatches("w", "Write"));
 static assert(modeMatches("w", "NotebookEdit"));
@@ -43,6 +43,17 @@ enum modeCtrl = () { Control c; c.mode = Mode("w"); c.filepath = FilePath(".pbt"
 static assert(postToolUseMatch(modeCtrl, null, "/Users/me/ground/controls/permissions.pbt", "Edit"));
 static assert(postToolUseMatch(modeCtrl, null, "/Users/me/ground/controls/permissions.pbt", "Write"));
 static assert(!postToolUseMatch(modeCtrl, null, "/Users/me/ground/controls/permissions.pbt", "Read"));
+
+// f mode — WebFetch and WebSearch only
+static assert(modeMatches("f", "WebFetch"));
+static assert(modeMatches("f", "WebSearch"));
+static assert(!modeMatches("f", "Read"));
+static assert(!modeMatches("f", "Bash"));
+static assert(!modeMatches("f", "Edit"));
+
+// f no longer in r
+static assert(!modeMatches("r", "WebFetch"));
+static assert(!modeMatches("r", "WebSearch"));
 
 // no mode, no tool — fires for any tool
 static assert(postToolUseMatch(fpCtrl, null, "/Users/me/ground/controls/permissions.pbt", "Read"));

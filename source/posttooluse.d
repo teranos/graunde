@@ -6,12 +6,13 @@ import parse : extractCommand, extractFilePath, extractToolName, writeJsonString
 import core.stdc.stdio : stdout, fputs;
 
 // Maps a mode character to whether the given tool name matches.
-// r=Read/Glob/Grep/LSP/WebFetch/WebSearch, w=Edit/Write/NotebookEdit, x=Bash, m=MCP, a=Agent
+// r=Read/Glob/Grep/LSP, f=WebFetch/WebSearch, w=Edit/Write/NotebookEdit, x=Bash, m=MCP, a=Agent
 bool modeMatchesToolName(char mode, const(char)[] toolName) {
     if (toolName.length == 0) return false;
     switch (mode) {
         case 'r': return toolName == "Read" || toolName == "Glob" || toolName == "Grep"
-                      || toolName == "LSP" || toolName == "WebFetch" || toolName == "WebSearch";
+                      || toolName == "LSP";
+        case 'f': return toolName == "WebFetch" || toolName == "WebSearch";
         case 'w': return toolName == "Edit" || toolName == "Write" || toolName == "NotebookEdit";
         case 'x': return toolName == "Bash";
         case 'm': return toolName.length > 4 && toolName[0 .. 4] == "mcp_";

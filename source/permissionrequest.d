@@ -1,7 +1,7 @@
 module permissionrequest;
 
 import core.stdc.stdio : stdout, fputs;
-import parse : extractToolName, extractCommand, extractFilePath, writeJsonString;
+import parse : extractToolName, extractCommand, extractFilePath, extractUrl, writeJsonString;
 import permission : evaluatePermission, Decision;
 
 int handlePermissionRequest(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
@@ -10,6 +10,7 @@ int handlePermissionRequest(const(char)[] input, const(char)[] cwd, const(char)[
 
     auto command = extractCommand(input);
     if (command is null) command = extractFilePath(input);
+    if (command is null) command = extractUrl(input);
     if (command is null) command = "";
 
     import controls : permissionScopes;

@@ -191,3 +191,45 @@ static assert(gc5.decision == Decision.none);
 // git -C with quoted path
 enum gc6 = evaluatePermission(gitCSet[], "/home/user/project", "Bash", `git -C "/path with spaces/repo" log`);
 static assert(gc6.decision == Decision.allow);
+
+// --- WebFetch URL permission tests (f mode) ---
+
+// f mode implies trailing /* — bare domains match any path
+enum fetchPermPbt = `
+scope {
+  path: "/"
+  permission.f {
+    allow: ["docs.anthropic.com", "api.github.com"]
+  }
+}
+`;
+enum fetchParsed = parsePbt(fetchPermPbt);
+enum fetchSet = buildPermissions(fetchParsed);
+
+// WebFetch with allowed domain — bare domain matches subpaths
+enum f1 = evaluatePermission(fetchSet[], "/home/user/project", "WebFetch", "https://docs.anthropic.com/en/docs/overview");
+static assert(f1.decision == Decision.allow);
+
+// WebFetch with non-allowed domain
+enum f2 = evaluatePermission(fetchSet[], "/home/user/project", "WebFetch", "https://evil.com/steal");
+static assert(f2.decision == Decision.none);
+
+// WebSearch also matches f mode
+enum f3 = evaluatePermission(fetchSet[], "/home/user/project", "WebSearch", "https://api.github.com/repos/foo/bar");
+static assert(f3.decision == Decision.allow);
+
+// f mode does NOT match Read
+enum f4 = evaluatePermission(fetchSet[], "/home/user/project", "Read", "https://docs.anthropic.com/foo");
+static assert(f4.decision == Decision.none);
+
+// r mode does NOT match WebFetch anymore
+enum f5 = evaluatePermission(pathSet[], "/home/user/project", "WebFetch", "/home/user/project/.env");
+static assert(f5.decision == Decision.none);
+
+// Domain root without path still matches
+enum f6 = evaluatePermission(fetchSet[], "/home/user/project", "WebFetch", "https://docs.anthropic.com");
+static assert(f6.decision == Decision.allow);
+
+// Subdomain doesn't match parent domain
+enum f7 = evaluatePermission(fetchSet[], "/home/user/project", "WebFetch", "https://evil.docs.anthropic.com/foo");
+static assert(f7.decision == Decision.none);
