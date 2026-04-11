@@ -217,6 +217,20 @@ bool scopeMatches(S)(const ref S sc, const(char)[] cwd) {
         if (p.length == 0) continue;
         if (p[0] == '!') {
             if (!contains(cwd, p[1 .. $])) return true;
+        } else if (p[0] == '=') {
+            // Exact match — cwd must end with this path
+            auto exact = p[1 .. $];
+            if (cwd.length >= exact.length) {
+                bool match = true;
+                foreach (j; 0 .. exact.length) {
+                    char a = cwd[cwd.length - exact.length + j];
+                    char b = exact[j];
+                    if (a >= 'A' && a <= 'Z') a += 32;
+                    if (b >= 'A' && b <= 'Z') b += 32;
+                    if (a != b) { match = false; break; }
+                }
+                if (match) return true;
+            }
         } else {
             if (contains(cwd, p)) return true;
         }
