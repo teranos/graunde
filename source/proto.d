@@ -79,7 +79,7 @@ struct ParseResult {
     size_t permPoolLen;
     ParsedProject[pbtCounts.totalProjects + 4] projects;
     size_t projectCount;
-    ParsedEnv[pbtCounts.totalEnvs + 1] envs;
+    ParsedEnv[pbtCounts.totalEnvs + 4] envs;
     size_t envCount;
 }
 

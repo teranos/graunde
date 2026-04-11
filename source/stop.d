@@ -157,7 +157,7 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                         }
                     }
                     if (inclusiveFailed) continue;
-                    if (exclCount > 0 && editAttestationOutside(db, exclPats.ptr, exclCount, sessionId))
+                    if (exclCount > 0 && editAttestationOutside(db, exclPats.ptr, exclCount, sessionId, cwd))
                         continue;
                 }
                 // cmd: scope gate — check session command history

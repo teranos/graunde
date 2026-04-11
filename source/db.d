@@ -248,19 +248,31 @@ bool editAttestationContains(sqlite3* db, const(char)[] pattern, const(char)[] s
 
 // Check if session has Write/Edit attestations that DON'T match ANY of the given patterns.
 // Used for subtractive edited: scope — returns true if edits exist outside the listed paths.
-bool editAttestationOutside(sqlite3* db, const(char)[]* patterns, size_t patCount, const(char)[] sessionId) {
-    __gshared ZBuf ctx, sqlBuf;
+// Temporal: git push resets the baseline — only edits AFTER the last push count.
+// Scoped to cwd so incidental edits (e.g. .claude/MEMORY.md) don't leak through.
+bool editAttestationOutside(sqlite3* db, const(char)[]* patterns, size_t patCount,
+    const(char)[] sessionId, const(char)[] cwd)
+{
+    __gshared ZBuf ctx, sqlBuf, cwdPat;
 
     ctx.reset();
     ctx.put("session:");
     ctx.put(sessionId);
 
-    // Build: SELECT 1 FROM attestations WHERE ... AND file_path NOT LIKE %p1% AND NOT LIKE %p2% ...
+    cwdPat.reset();
+    cwdPat.put("%");
+    cwdPat.put(cwd);
+    cwdPat.put("%");
+
+    // Build: SELECT 1 FROM attestations WHERE ... AND file_path LIKE %cwd%
+    //   AND rowid > COALESCE((last git push rowid), 0)
+    //   AND file_path NOT LIKE %p1% ...
     sqlBuf.reset();
-    sqlBuf.put("SELECT 1 FROM attestations WHERE json_extract(predicates, '$[0]') = 'PostToolUse' AND json_extract(contexts, '$[0]') = ?1 AND json_extract(attributes, '$.tool_name') IN ('Write', 'Edit')");
+    sqlBuf.put("SELECT 1 FROM attestations WHERE json_extract(predicates, '$[0]') = 'PostToolUse' AND json_extract(contexts, '$[0]') = ?1 AND json_extract(attributes, '$.tool_name') IN ('Write', 'Edit') AND json_extract(attributes, '$.tool_input.file_path') LIKE ?2");
+    sqlBuf.put(" AND rowid > COALESCE((SELECT MAX(rowid) FROM attestations WHERE json_extract(predicates, '$[0]') = 'PostToolUse' AND json_extract(contexts, '$[0]') = ?1 AND json_extract(attributes, '$.tool_name') = 'Bash' AND json_extract(attributes, '$.tool_input.command') LIKE '%git push%'), 0)");
     foreach (i; 0 .. patCount) {
         sqlBuf.put(" AND json_extract(attributes, '$.tool_input.file_path') NOT LIKE ?");
-        sqlBuf.putChar(cast(char)('2' + i));
+        sqlBuf.putChar(cast(char)('3' + i));
     }
     sqlBuf.put(" LIMIT 1");
     sqlBuf.putChar('\0');
@@ -270,6 +282,7 @@ bool editAttestationOutside(sqlite3* db, const(char)[]* patterns, size_t patCoun
         return false;
 
     sqlite3_bind_text(stmt, 1, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, cwdPat.ptr(), cast(int) cwdPat.len, SQLITE_TRANSIENT);
 
     __gshared ZBuf[8] patBufs;
     foreach (i; 0 .. patCount) {
@@ -277,7 +290,7 @@ bool editAttestationOutside(sqlite3* db, const(char)[]* patterns, size_t patCoun
         patBufs[i].put("%");
         patBufs[i].put(patterns[i]);
         patBufs[i].put("%");
-        sqlite3_bind_text(stmt, cast(int)(2 + i), patBufs[i].ptr(), cast(int) patBufs[i].len, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, cast(int)(3 + i), patBufs[i].ptr(), cast(int) patBufs[i].len, SQLITE_TRANSIENT);
     }
 
     bool found = sqlite3_step(stmt) == SQLITE_ROW;
