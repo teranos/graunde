@@ -53,6 +53,8 @@ void writeResponse(const(char)[] command, const(char)[] context, const(char)[] d
 
 // --- PreToolUse handler ---
 
+// TODO: extract `agent_id`, `agent_type` — gate subagent tool calls differently from main session
+// TODO: extract `permission_mode` — adjust decisions based on current mode (plan, auto, etc.)
 int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
     auto toolName = extractToolName(input);
     auto toolUseId = extractToolUseId(input);

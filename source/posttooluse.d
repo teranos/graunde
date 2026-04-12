@@ -45,6 +45,8 @@ bool postToolUseMatch(const Control c, const(char)[] command, const(char)[] file
     return false;
 }
 
+// TODO: extract `tool_response` — the actual result the tool returned (ground only reads tool_input today)
+// TODO: extract `agent_id`, `agent_type` — distinguish subagent tool calls from main session
 int handlePostToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
     auto command = extractCommand(input);
     auto filePath = extractFilePath(input);

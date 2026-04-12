@@ -21,6 +21,16 @@ module main;
 //   permissionDecisionReason — (PreToolUse) shown to user (allow/ask) or Claude (deny)
 //   updatedInput             — (PreToolUse) replaces tool input before execution
 //   additionalContext        — (UserPromptSubmit required, PostToolUse optional) injected into context
+//   sessionTitle             — (UserPromptSubmit) sets session title, same as /rename
+//
+// TODO: output fields ground doesn't emit yet:
+//   suppressOutput  — could silence verbose hooks (e.g. build-timing)
+//   continue:false + stopReason — halt Claude entirely, stronger than decision:block
+//   systemMessage   — warning shown to user, separate from context injected to Claude
+//
+// Common input fields ground doesn't use yet:
+//   permission_mode — "default", "plan", "acceptEdits", "auto", "dontAsk", "bypassPermissions"
+//   tool_use_id     — unique per tool call, could track tool call chains
 
 import parse : extractCwd, extractSessionId, extractHookEventName, extractSource;
 import controls : HookEvent;

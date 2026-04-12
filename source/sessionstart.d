@@ -135,6 +135,7 @@ void attestTypes() {
 
 // TODO: extract and attest `model` field — track which model worked on what
 // TODO: extract `agent_type` field — adjust controls for agent vs interactive sessions
+// TODO: use `source` field — "startup", "resume", "clear", "compact" — fire different controls per source
 int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] sessionId) {
     attestTypes();
 

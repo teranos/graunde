@@ -6,6 +6,7 @@ enum HookEvent {
     PreToolUse,         // command amendment, file-path controls, scoped decisions
                         // TODO: updatedInput for non-Bash tools (file_path, pattern, offset, etc.)
     PermissionRequest,  // TODO: auto-allow/deny permission dialogs
+    PermissionDenied,   // TODO: fires when auto mode classifier denies a tool call
     PostToolUse,        // attested, response captured, CI nudge on git push, review nudge
                         //   cmd and filepath matching for advisory context
                         // TODO: tool-name filtering — restrict controls to specific tools (e.g. Edit only, not Read)
@@ -20,18 +21,40 @@ enum HookEvent {
                         //   time-scoped modes could auto-approve agent spawning during event windows
     SubagentStop,       // attested (full payload incl. last_assistant_message, agent_transcript_path)
                         //   stop_hook_active:false — Claude Code may ignore responses
+                        //   payload: agent_id, agent_type, agent_transcript_path, last_assistant_message
+                        //   TODO: read agent_transcript_path for quality checks on subagent output
                         //   TODO: verify what response fields are honored
     Stop,               // trail controls, deferred messages, lazy-verify, CI nudge
+    StopFailure,        // TODO: fires when turn ends due to API error — retry logic, error logging
     TeammateIdle,       // TODO: quality gates before teammate stops — exit 2 to continue, continue:false to halt
+    TaskCreated,        // TODO: fires when a task is being created
+                        //   payload: task_id, task_subject, task_description, teammate_name, team_name
+                        //   CAN block: exit 2 = feedback to model, continue:false = halt teammate
+                        //   use case: enforce naming, inject context, gate delegation
     TaskCompleted,      // TODO: enforce completion criteria — exit 2 blocks with feedback, continue:false halts
     ConfigChange,       // TODO: block unwanted config changes mid-session (exit 2, except policy_settings)
+    CwdChanged,         // TODO: fires when cwd changes — payload: old_cwd, new_cwd
+                        //   cannot block, side-effects only. CLAUDE_ENV_FILE available.
+                        //   replaces PostToolUse cd hack for directory-enter controls
+                        //   added v2.1.83, requires Claude Code upgrade from current v2.0.37
+    FileChanged,        // TODO: fires when a watched file changes on disk
+                        //   payload: file_path, change_type (created/modified/deleted)
+                        //   matcher: literal filenames with | separator (e.g. ".envrc|.env"), not regex
+                        //   cannot block, side-effects only. CLAUDE_ENV_FILE available.
+                        //   use case: auto make install when .pbt changes externally, am.toml reload
     WorktreeCreate,     // TODO: agent worktree creation — stdout prints path, non-zero exit fails creation
     WorktreeRemove,     // TODO: agent worktree cleanup
     PreCompact,         // branch context via precompact() trigger
                         // TODO: capture session state before compaction so it survives context loss
+    PostCompact,        // TODO: fires after compaction completes
+                        //   payload: trigger ("manual" or "auto"), cannot block
+                        //   matcher: "manual" or "auto"
+                        //   use case: verify critical context survived, diff pre vs post
     Setup,              // TODO: runs on --init/--init-only/--maintenance before session starts
                         //   undocumented upstream (shipped 2.1.10, absent from hooks reference)
     InstructionsLoaded, // fires when CLAUDE.md or .claude/rules/*.md is loaded
+    Elicitation,        // TODO: fires when MCP server requests user input during a tool call
+    ElicitationResult,  // TODO: fires after user responds to MCP elicitation
     SessionEnd,         // TODO: session wrap-up — final attestation, summarize what happened
 }
 

@@ -5,6 +5,7 @@ import hooks : scopeMatches;
 import parse : fputs2;
 import core.stdc.stdio : stdout, fputs;
 
+// TODO: extract `is_interrupt` — distinguish user cancels from real failures
 int handlePostToolUseFailure(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
     import parse : extractError;
     import controls : postToolUseFailureScopes;
