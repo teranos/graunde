@@ -55,16 +55,19 @@ bool commitNotRequested(const(char)[] cwd, const(char)[] input) {
     if (sqlite3_prepare_v2(db, last3Sql.ptr, -1, &userStmt, null) == SQLITE_OK) {
         sqlite3_bind_text(userStmt, 1, ctx.ptr(), cast(int) ctx.len, SQLITE_TRANSIENT);
         sqlite3_bind_int64(userStmt, 2, lastCommitRowid);
+        int msgIdx = 0;
         while (sqlite3_step(userStmt) == SQLITE_ROW) {
             auto text = sqlite3_column_text(userStmt, 0);
             if (text !is null) {
                 size_t tlen = 0;
                 while (text[tlen] != 0) tlen++;
-                if (isCommitApproval(text[0 .. tlen])) {
+                auto m = text[0 .. tlen];
+                if (isCommitApproval(m) || (msgIdx == 0 && isImmediateApproval(m))) {
                     userSaid = true;
                     break;
                 }
             }
+            msgIdx++;
         }
         sqlite3_finalize(userStmt);
     }
@@ -75,20 +78,48 @@ bool commitNotRequested(const(char)[] cwd, const(char)[] input) {
     return !userSaid;
 }
 
-// Returns true if message is a commit approval: contains "commit", or is bare "ok"/"y".
+// Strong approval — works anywhere in the 3-message window.
+// Contains "commit" or "verified" (case-insensitive), or bare "ok"/"sure".
 bool isCommitApproval(const(char)[] msg) {
     if (contains(msg, "commit")) return true;
+    if (containsCI(msg, "verified")) return true;
 
-    // Trim whitespace
+    auto trimmed = trimWS(msg);
+    return trimmed == "ok" || trimmed == "sure";
+}
+
+// Weak approval — only counts as the immediate last message.
+// Bare "yes" or "y".
+bool isImmediateApproval(const(char)[] msg) {
+    auto trimmed = trimWS(msg);
+    return trimmed == "yes" || trimmed == "y";
+}
+
+const(char)[] trimWS(const(char)[] msg) {
     size_t start = 0;
     while (start < msg.length && (msg[start] == ' ' || msg[start] == '\t' || msg[start] == '\n' || msg[start] == '\r'))
         start++;
     size_t end = msg.length;
     while (end > start && (msg[end - 1] == ' ' || msg[end - 1] == '\t' || msg[end - 1] == '\n' || msg[end - 1] == '\r'))
         end--;
-    auto trimmed = msg[start .. end];
+    return msg[start .. end];
+}
 
-    return trimmed == "ok" || trimmed == "y" || trimmed == "sure";
+bool containsCI(const(char)[] haystack, const(char)[] needle) {
+    if (needle.length == 0) return true;
+    if (haystack.length < needle.length) return false;
+    foreach (i; 0 .. haystack.length - needle.length + 1) {
+        bool match = true;
+        foreach (j; 0 .. needle.length) {
+            char a = haystack[i + j];
+            char b = needle[j];
+            if (a >= 'A' && a <= 'Z') a += 32;
+            if (b >= 'A' && b <= 'Z') b += 32;
+            if (a != b) { match = false; break; }
+        }
+        if (match) return true;
+    }
+    return false;
 }
 
 bool strikethroughCheck(const(char)[] cwd, const(char)[] input) {
