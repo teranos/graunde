@@ -262,9 +262,10 @@ unittest {
 }
 
 unittest {
-    // "y" by itself — counts as approval
-    import control_handlers : isCommitApproval;
-    assert(isCommitApproval("y"));
+    // "y" by itself — immediate-only approval, not strong
+    import control_handlers : isCommitApproval, isImmediateApproval;
+    assert(!isCommitApproval("y"));
+    assert(isImmediateApproval("y"));
 }
 
 unittest {
@@ -274,9 +275,10 @@ unittest {
 }
 
 unittest {
-    // "y" with whitespace — still counts
-    import control_handlers : isCommitApproval;
-    assert(isCommitApproval("  y\n"));
+    // "y" with whitespace — immediate-only
+    import control_handlers : isCommitApproval, isImmediateApproval;
+    assert(!isCommitApproval("  y\n"));
+    assert(isImmediateApproval("  y\n"));
 }
 
 unittest {
@@ -298,9 +300,18 @@ unittest {
 }
 
 unittest {
-    // "yes" is not "y" — not a bare confirmation (and no "commit")
-    import control_handlers : isCommitApproval;
+    // "yes" — immediate-only approval, not strong
+    import control_handlers : isCommitApproval, isImmediateApproval;
     assert(!isCommitApproval("yes"));
+    assert(isImmediateApproval("yes"));
+}
+
+unittest {
+    // "verified" (case-insensitive) — strong approval
+    import control_handlers : isCommitApproval;
+    assert(isCommitApproval("Verified it."));
+    assert(isCommitApproval("verified"));
+    assert(isCommitApproval("VERIFIED"));
 }
 
 // --- containsExact (case-sensitive) tests ---
