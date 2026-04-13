@@ -31,7 +31,7 @@ struct ParsedControl {
     string cmd, arg, omit;
     string[16] triggers;
     ubyte triggerCount;
-    string filepath, msg;
+    string filepath, msg, mcpArg;
     string[8] userprompts;
     ubyte userpromptCount;
     bool bg;
@@ -52,6 +52,7 @@ struct ParsedScope {
     string decision, event;
     string[3] extraEvents;
     ubyte extraEventCount;
+    string mcpTool;
     size_t controlStart, controlEnd;     // indices into ParseResult.ctrlPool
     size_t permStart, permEnd;           // indices into ParseResult.permPool
 
@@ -190,6 +191,7 @@ ScopeSet buildScopes(
                 c.userprompt.len = pc.userpromptCount;
             }
             c.msg = Msg(pc.msg);
+            c.mcpArg = McpArg(pc.mcpArg);
             c.bg = Bg(pc.bg);
             c.tmo = Tmo(pc.tmo);
 
@@ -238,6 +240,7 @@ ScopeSet buildScopes(
         s.cmds = ps.cmds;
         s.cmdCount = ps.cmdCount;
         s.decision = decision;
+        s.mcpTool = ps.mcpTool;
         s.controls = result.ctrlPool[ctrlStart .. poolLen];
         result.items[result.len] = s;
         result.len++;
@@ -479,6 +482,7 @@ void parseScope(ref string input, ref size_t pos, ref ParseResult result,
                         sc.cmds[0] = val; sc.cmdCount = 1;
                     }
                     break;
+                case "mcp_tool": sc.mcpTool = val; break;
                 default: assert(0, "Unknown scope field");
             }
         }
@@ -650,6 +654,7 @@ ParsedControl parseControl(ref string input, ref size_t pos) {
                 }
                 break;
             case "msg":             c.msg = val; break;
+            case "mcp_arg":         c.mcpArg = val; break;
             case "bg":              c.bg = (val == "true"); break;
             case "tmo":             c.tmo = parseInt(val); break;
             case "check_handler":   c.checkHandler = val; break;

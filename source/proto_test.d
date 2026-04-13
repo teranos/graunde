@@ -678,3 +678,41 @@ static assert(multiEventPostToolUse.items[0].controls[0].name == "local-controls
 // Should NOT match unrelated events
 enum multiEventStop = buildScopes(multiEventParsed, "Stop");
 static assert(multiEventStop.len == 0);
+
+// --- mcp_tool scope field + mcp_arg control field ---
+
+enum mcpInput = `
+scope {
+  path: "/SBVH"
+  event: "PreToolUse"
+  mcp_tool: "read_messages"
+
+  control {
+    name: "contact-a-context"
+    mcp_arg: "Alice"
+    msg: "Read ~/Obsidian/People/Alice.md first. Update it after if anything significant."
+  }
+
+  control {
+    name: "contact-b-context"
+    mcp_arg: "Bob"
+    msg: "Bob is a baker. Check bobsbakery.com/menu for today's pastries before responding."
+  }
+}
+`;
+enum mcpParsed = parsePbt(mcpInput);
+static assert(mcpParsed.scopeCount == 1);
+static assert(mcpParsed.scopes[0].mcpTool == "read_messages");
+static assert(mcpParsed.scopes[0].event == "PreToolUse");
+static assert(mcpParsed.scopes[0].controlCount == 2);
+static assert(ctrl(mcpParsed, 0, 0).name == "contact-a-context");
+static assert(ctrl(mcpParsed, 0, 0).mcpArg == "Alice");
+static assert(ctrl(mcpParsed, 0, 1).name == "contact-b-context");
+static assert(ctrl(mcpParsed, 0, 1).mcpArg == "Bob");
+
+// buildScopes preserves mcp_tool on Scope and mcpArg on Control
+enum mcpBuilt = buildScopes(mcpParsed, "PreToolUse");
+static assert(mcpBuilt.len == 1);
+static assert(mcpBuilt.items[0].mcpTool == "read_messages");
+static assert(mcpBuilt.items[0].controls[0].mcpArg.value == "Alice");
+static assert(mcpBuilt.items[0].controls[1].mcpArg.value == "Bob");

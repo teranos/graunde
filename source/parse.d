@@ -109,6 +109,24 @@ const(char)[] extractToolName(const(char)[] json) {
     return extractJsonString(json, `"tool_name"`, &buf[0], buf.length);
 }
 
+// Returns the raw JSON region for "tool_input": { ... } — no parsing, just the brace-delimited slice.
+const(char)[] extractToolInputRegion(const(char)[] json) {
+    auto idx = indexOf(json, `"tool_input"`);
+    if (idx < 0) return null;
+    size_t pos = cast(size_t) idx + 12; // skip "tool_input"
+    while (pos < json.length && json[pos] != '{') pos++;
+    if (pos >= json.length) return null;
+    // Find matching closing brace
+    size_t depth = 0;
+    size_t start = pos;
+    while (pos < json.length) {
+        if (json[pos] == '{') depth++;
+        else if (json[pos] == '}') { depth--; if (depth == 0) return json[start .. pos + 1]; }
+        pos++;
+    }
+    return null;
+}
+
 const(char)[] extractFilePath(const(char)[] json) {
     __gshared char[4096] buf = 0;
     return extractJsonString(json, `"file_path"`, &buf[0], buf.length);

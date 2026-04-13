@@ -88,6 +88,10 @@ struct Msg {
     string value;
 }
 
+struct McpArg {
+    string value;
+}
+
 struct Bg {
     bool value;
 }
@@ -160,6 +164,7 @@ struct Control {
     UserPrompt userprompt;
     SessionStartTrigger sessionstart;
     Msg msg;
+    McpArg mcpArg;
     Bg bg;
     Tmo tmo;
     Defer defer;
@@ -229,6 +234,7 @@ struct Scope {
     string[8] cmds;
     ubyte cmdCount;
     string decision;
+    string mcpTool;
     const(Control)[] controls;
 }
 

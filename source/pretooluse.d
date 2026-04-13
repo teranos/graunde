@@ -240,6 +240,55 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
         }
     }
 
+    // MCP tool controls — scope-level mcp_tool + control-level mcp_arg matching
+    if (toolName.length > 4 && toolName[0 .. 4] == "mcp_") {
+        import controls : allScopes;
+        import hooks : scopeMatches;
+        import parse : extractToolInputRegion;
+        import db : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;
+
+        auto db = openDb();
+        __gshared Buf mcpMsgBuf;
+        mcpMsgBuf = Buf.init;
+
+        foreach (ref sc; allScopes) {
+            if (sc.mcpTool.length == 0) continue;
+            if (!scopeMatches(sc, cwd)) continue;
+            // Check tool name ends with __<mcpTool>
+            if (toolName.length < sc.mcpTool.length + 2) continue;
+            auto suffix = toolName[toolName.length - sc.mcpTool.length .. $];
+            if (suffix != sc.mcpTool) continue;
+            if (toolName[toolName.length - sc.mcpTool.length - 2 .. toolName.length - sc.mcpTool.length] != "__") continue;
+
+            const(char)[] toolInput;
+            foreach (ref c; sc.controls) {
+                if (c.mcpArg.value.length > 0) {
+                    if (toolInput is null) toolInput = extractToolInputRegion(input);
+                    if (toolInput is null) continue;
+                    if (!contains(toolInput, c.mcpArg.value)) continue;
+                }
+                if (c.msg.value.length == 0) continue;
+                if (db !is null && attestationExists(db, "GroundedPreToolUse", c.name, sessionId))
+                    continue;
+
+                if (mcpMsgBuf.len > 0) mcpMsgBuf.put(" | ");
+                mcpMsgBuf.put(envSubst(c.msg.value, cwd));
+
+                if (db !is null) {
+                    import db : attestControlFire;
+                    attestControlFire(db, "GroundedPreToolUse", c.name, cwd, sessionId);
+                }
+            }
+        }
+
+        if (db !is null) sqlite3_close(db);
+
+        if (mcpMsgBuf.len > 0) {
+            writeContextResponse(mcpMsgBuf.slice(), "allow");
+            return 0;
+        }
+    }
+
     // File-path controls (advisory context)
     // TODO: updatedInput for non-Bash tools (run_in_background, timeout, new_description)
     if (filePath !is null) {
