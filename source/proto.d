@@ -97,7 +97,7 @@ struct ParseResult {
     size_t envCount;
     ParsedQntxNode[16] qntxNodes;
     size_t qntxNodeCount;
-    ParsedAttestation[32] attestations;
+    ParsedAttestation[128] attestations;
     size_t attestationCount;
 }
 

@@ -1,12 +1,15 @@
 module attest;
 
 import core.stdc.stdio : stderr, stdout, fputs, fwrite, fprintf, FILE;
-import core.stdc.stdlib : exit;
 import db : ZBuf;
 
 extern (C) {
     FILE* popen(const(char)* command, const(char)* type);
     int pclose(FILE* stream);
+    int mkstemp(char* tmpl);
+    int close(int fd);
+    long write(int fd, const(void)* buf, size_t count);
+    int unlink(const(char)* path);
 }
 
 int handleAttest() {
@@ -41,21 +44,31 @@ int handleAttest() {
             }
             body_.put(`}`);
 
+            // Write body to temp file to avoid shell injection
+            __gshared char[32] tmpPath = "/tmp/ground-attest-XXXXXX\0\0\0\0\0\0\0";
+            // Reset template each iteration
+            foreach (i, c; "/tmp/ground-attest-XXXXXX\0")
+                tmpPath[i] = c;
+
+            auto fd = mkstemp(&tmpPath[0]);
+            if (fd < 0) { failed++; continue; }
+
+            auto bodySlice = body_.slice();
+            write(fd, bodySlice.ptr, bodySlice.length);
+            close(fd);
+
             __gshared ZBuf cmd;
             cmd.reset();
             cmd.put("curl -s --connect-timeout 0.4 --max-time 0.4 -o /dev/null -w '%{http_code}' -X POST ");
             cmd.put(node.url);
-            cmd.put("/api/attestations -H 'Content-Type: application/json' -d '");
-            // Escape single quotes in body for shell
-            foreach (c; body_.slice()) {
-                if (c == '\'') cmd.put("'\"'\"'");
-                else cmd.putChar(c);
-            }
-            cmd.put("' 2>/dev/null");
+            cmd.put("/api/attestations -H 'Content-Type: application/json' -d @");
+            cmd.put(tmpPath[0 .. 25]); // /tmp/ground-attest-XXXXXX
+            cmd.put(" 2>/dev/null");
             cmd.putChar('\0');
 
             auto pipe = popen(cmd.ptr(), "r\0".ptr);
             if (pipe is null) {
+                unlink(&tmpPath[0]);
                 failed++;
                 continue;
             }
@@ -68,6 +81,7 @@ int handleAttest() {
                 n++;
             }
             pclose(pipe);
+            unlink(&tmpPath[0]);
 
             // Report
             fputs("  ", stderr);
