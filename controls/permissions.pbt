@@ -2,7 +2,7 @@
 
 permission {
 
-  allow: ["find *"]
+  allow: ["find *", "grep *"]
 }
 
 permission {
@@ -13,7 +13,7 @@ permission {
 
 permission {
 
-  allow: ["sleep *", "say *", "time *"]
+  allow: ["cd *", "sleep *", "say *", "time *"]
 }
 
 permission {

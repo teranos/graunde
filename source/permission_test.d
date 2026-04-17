@@ -233,3 +233,45 @@ static assert(f6.decision == Decision.allow);
 // Subdomain doesn't match parent domain
 enum f7 = evaluatePermission(fetchSet[], "/home/user/project", "WebFetch", "https://evil.docs.anthropic.com/foo");
 static assert(f7.decision == Decision.none);
+
+// --- Compound command tests (&&, ;, ||) ---
+
+enum compoundPermPbt = `
+scope {
+  path: "/"
+  permission {
+    allow: ["cd *", "git log*", "git status*", "ls *", "grep *"]
+    deny: ["*rm -rf*"]
+  }
+}
+`;
+enum compoundParsed = parsePbt(compoundPermPbt);
+enum compoundSet = buildPermissions(compoundParsed);
+
+// cd && git log — both sides allowed → allow
+enum c1 = evaluatePermission(compoundSet[], "/home/user/project", "Bash", "cd /path && git log --oneline -20");
+static assert(c1.decision == Decision.allow);
+
+// cd && unknown command — one side not matched → none
+enum c2 = evaluatePermission(compoundSet[], "/home/user/project", "Bash", "cd /path && python script.py");
+static assert(c2.decision == Decision.none);
+
+// cd && rm -rf — one side denied → deny
+enum c3 = evaluatePermission(compoundSet[], "/home/user/project", "Bash", "cd /path && rm -rf /tmp");
+static assert(c3.decision == Decision.deny);
+
+// Three parts: cd && ls && grep — all allowed → allow
+enum c4 = evaluatePermission(compoundSet[], "/home/user/project", "Bash", "cd /path && ls -la /foo && grep -l pattern");
+static assert(c4.decision == Decision.allow);
+
+// Semicolon separator: cd ; git status — both allowed → allow
+enum c5 = evaluatePermission(compoundSet[], "/home/user/project", "Bash", "cd /path ; git status");
+static assert(c5.decision == Decision.allow);
+
+// || separator: git log || git status — both allowed → allow
+enum c6 = evaluatePermission(compoundSet[], "/home/user/project", "Bash", "cd /path || git log --oneline");
+static assert(c6.decision == Decision.allow);
+
+// Single command (no separator) — unchanged behavior
+enum c7 = evaluatePermission(compoundSet[], "/home/user/project", "Bash", "git log --oneline");
+static assert(c7.decision == Decision.allow);

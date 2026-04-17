@@ -342,6 +342,12 @@ scope {
   }
 
   control {
+    name: "no-pre-existing-excuse"
+    stop: "pre-existing"
+    msg: "Don't care if it's pre-existing or not. Is there an issue? Fix it NOW or explain the problem more clearly. If we cannot continue, show me the filepaths related to this being a blocker that you cannot overcome. Almost always we can overcome this."
+  }
+
+  control {
     name: "previous-conversations-accessible"
     stop: [
         "each conversation starts fresh",

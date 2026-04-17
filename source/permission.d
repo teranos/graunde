@@ -192,11 +192,89 @@ NormalizedCmd normalizeGitC(const(char)[] cmd) {
     return r;
 }
 
+// Split compound commands on &&, ;, || and evaluate each part.
+// All parts must be allowed for the compound to be allowed.
+// Any deny in any part → deny the whole thing.
 PermissionResult evaluatePermission(
     const(PermissionScope)[] scopes,
     const(char)[] cwd,
     const(char)[] toolName,
     const(char)[] command,
+) {
+    if (toolName == "Bash") {
+        auto parts = splitCompound(command);
+        if (parts.count > 1) {
+            PermissionResult worst;
+            worst.decision = Decision.allow; // start optimistic
+            foreach (i; 0 .. parts.count) {
+                auto part = trimSlice(parts.parts[i]);
+                auto r = evaluateSingle(scopes, cwd, toolName, part, command);
+                if (r.decision == Decision.deny)
+                    return r; // deny immediately
+                if (r.decision < worst.decision) {
+                    worst = r; // track lowest (none < allow < ask < deny)
+                }
+            }
+            return worst;
+        }
+    }
+    return evaluateSingle(scopes, cwd, toolName, command, command);
+}
+
+private const(char)[] trimSlice(const(char)[] s) {
+    while (s.length > 0 && s[0] == ' ') s = s[1 .. $];
+    while (s.length > 0 && s[$ - 1] == ' ') s = s[0 .. $ - 1];
+    return s;
+}
+
+struct CompoundParts {
+    const(char)[][8] parts;
+    size_t count;
+}
+
+CompoundParts splitCompound(const(char)[] cmd) {
+    CompoundParts result;
+    size_t start = 0;
+    bool inQuote = false;
+
+    size_t i = 0;
+    while (i < cmd.length) {
+        if (cmd[i] == '"' || cmd[i] == '\'') {
+            auto q = cmd[i];
+            i++;
+            while (i < cmd.length && cmd[i] != q) i++;
+            if (i < cmd.length) i++;
+            continue;
+        }
+        // Check for && or ||
+        if (i + 1 < cmd.length && ((cmd[i] == '&' && cmd[i+1] == '&') || (cmd[i] == '|' && cmd[i+1] == '|'))) {
+            if (result.count < result.parts.length)
+                result.parts[result.count++] = cmd[start .. i];
+            i += 2;
+            start = i;
+            continue;
+        }
+        // Check for ;
+        if (cmd[i] == ';') {
+            if (result.count < result.parts.length)
+                result.parts[result.count++] = cmd[start .. i];
+            i++;
+            start = i;
+            continue;
+        }
+        i++;
+    }
+    if (result.count < result.parts.length)
+        result.parts[result.count++] = cmd[start .. $];
+    return result;
+}
+
+private PermissionResult evaluateSingle(
+    const(PermissionScope)[] scopes,
+    const(char)[] cwd,
+    const(char)[] toolName,
+    const(char)[] command,
+    const(char)[] fullCommand,
 ) {
     import hooks : scopeMatches;
 
@@ -225,14 +303,14 @@ PermissionResult evaluatePermission(
 
             // Check deny first
             foreach (ref pat; p.deny.values) {
-                if (isBash ? wildcardContains(cmd, pat) : permMatch(command, pat)) {
+                if (isBash ? wildcardContains(cmd, pat) : permMatch(fullCommand, pat)) {
                     return PermissionResult(Decision.deny, p.name, p.msg);
                 }
             }
 
             // Check ask
             foreach (ref pat; p.ask.values) {
-                if (isBash ? wildcardContains(cmd, pat) : permMatch(command, pat)) {
+                if (isBash ? wildcardContains(cmd, pat) : permMatch(fullCommand, pat)) {
                     if (result.decision < Decision.ask) {
                         result.decision = Decision.ask;
                         result.name = p.name;
@@ -242,7 +320,7 @@ PermissionResult evaluatePermission(
 
             // Check allow
             foreach (ref pat; p.allow.values) {
-                if (isBash ? wildcardContains(cmd, pat) : permMatch(command, pat)) {
+                if (isBash ? wildcardContains(cmd, pat) : permMatch(fullCommand, pat)) {
                     if (result.decision < Decision.allow) {
                         result.decision = Decision.allow;
                         result.name = p.name;
