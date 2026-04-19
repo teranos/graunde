@@ -304,7 +304,7 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
         foreach (ref sc; allScopes) {
             if (!scopeMatches(sc, cwd)) continue;
             foreach (ref c; sc.controls) {
-                if (c.cmd.value.length > 0) continue; // command controls handled above
+                if (c.cmd.len > 0) continue; // command controls handled above
                 if (c.filepath.value.length == 0 && c.sessionstart.check is null) continue;
                 if (c.filepath.value.length > 0 && !contains(filePath, c.filepath.value)) continue;
                 if (c.sessionstart.check !is null && !c.sessionstart.check(cwd, input)) continue;

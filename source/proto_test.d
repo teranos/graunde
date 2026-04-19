@@ -758,3 +758,30 @@ static assert(qntxParsed.attestations[0].attributes.length > 0);
 static assert(qntxParsed.attestations[1].subject == "telegram:chat:355422856");
 static assert(qntxParsed.attestations[1].predicate == "raven:route");
 static assert(qntxParsed.attestations[1].attributes.length == 0);
+
+// --- cmd: array syntax at control level ---
+
+enum cmdArrayInput = `
+scope {
+  event: "PreToolUse"
+
+  control {
+    name: "pr-description-no-stats"
+    cmd: ["gh pr create", "gh pr edit"]
+    msg: "PR descriptions: why, not what. No LOC counts, no file counts, no diff stats."
+  }
+}
+`;
+enum cmdArrayParsed = parsePbt(cmdArrayInput);
+static assert(cmdArrayParsed.scopeCount == 1);
+static assert(ctrl(cmdArrayParsed, 0, 0).name == "pr-description-no-stats");
+static assert(ctrl(cmdArrayParsed, 0, 0).cmdCount == 2);
+static assert(ctrl(cmdArrayParsed, 0, 0).cmds[0] == "gh pr create");
+static assert(ctrl(cmdArrayParsed, 0, 0).cmds[1] == "gh pr edit");
+
+// buildScopes wires cmd array into Control
+enum cmdArrayBuilt = buildScopes(cmdArrayParsed, "PreToolUse");
+static assert(cmdArrayBuilt.len == 1);
+static assert(cmdArrayBuilt.items[0].controls[0].cmd.values.length == 2);
+static assert(cmdArrayBuilt.items[0].controls[0].cmd.values[0] == "gh pr create");
+static assert(cmdArrayBuilt.items[0].controls[0].cmd.values[1] == "gh pr edit");

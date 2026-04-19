@@ -117,6 +117,13 @@ const(char)[] stripGitDashC(const(char)[] segment) {
     return buf[0 .. 4 + rest.length];
 }
 
+// Returns true if segment matches any cmd in the Cmd array.
+bool cmdMatchesAny(const(char)[] segment, const Cmd cmd) {
+    foreach (ref v; cmd.values)
+        if (commandMatch(segment, v)) return true;
+    return false;
+}
+
 // Matches cmd as a command prefix — not a substring anywhere in the segment.
 // "go test" matches "go test ./..." but not "git commit -m 'go test'"
 // Also handles "git -C <path>" by normalizing before matching.
@@ -200,30 +207,30 @@ Match checkCommand(const(char)[] command, const(char)[] cwd) {
                     if (!scopeMatches(sc, cwd))
                         continue;
                     foreach (ref c; sc.controls) {
-                        if (commandMatch(segment, c.cmd.value)) {
-                            if (c.omit.value.length > 0 && !contains(segment, c.omit.value))
-                                continue;
-                            if (c.sessionstart.check !is null && !c.sessionstart.check(cwd, null))
-                                continue;
+                        if (!cmdMatchesAny(segment, c.cmd))
+                            continue;
+                        if (c.omit.value.length > 0 && !contains(segment, c.omit.value))
+                            continue;
+                        if (c.sessionstart.check !is null && !c.sessionstart.check(cwd, null))
+                            continue;
 
-                            // First amendment control (has arg or omit)
-                            if (amendment is null && (c.arg.value.length > 0 || c.omit.value.length > 0))
-                                amendment = &c;
+                        // First amendment control (has arg or omit)
+                        if (amendment is null && (c.arg.value.length > 0 || c.omit.value.length > 0))
+                            amendment = &c;
 
-                            // First match of any kind
-                            if (fallback is null)
-                                fallback = &c;
+                        // First match of any kind
+                        if (fallback is null)
+                            fallback = &c;
 
-                            // deny > ask > allow
-                            if (sc.decision == "deny") {
-                                decision = "deny";
-                                if (denyCtrl is null) denyCtrl = &c;
-                            }
-                            else if (sc.decision == "ask" && decision != "deny")
-                                decision = "ask";
-                            else if (decision.length == 0)
-                                decision = sc.decision;
+                        // deny > ask > allow
+                        if (sc.decision == "deny") {
+                            decision = "deny";
+                            if (denyCtrl is null) denyCtrl = &c;
                         }
+                        else if (sc.decision == "ask" && decision != "deny")
+                            decision = "ask";
+                        else if (decision.length == 0)
+                            decision = sc.decision;
                     }
                 }
 
@@ -282,24 +289,24 @@ MatchSet checkAllCommands(const(char)[] command, const(char)[] cwd) {
                     if (!scopeMatches(sc, cwd))
                         continue;
                     foreach (ref c; sc.controls) {
-                        if (commandMatch(segment, c.cmd.value)) {
-                            if (c.omit.value.length > 0 && !contains(segment, c.omit.value))
-                                continue;
-                            if (c.sessionstart.check !is null && !c.sessionstart.check(cwd, null))
-                                continue;
-                            if (amendment is null && (c.arg.value.length > 0 || c.omit.value.length > 0))
-                                amendment = &c;
-                            if (fallback is null)
-                                fallback = &c;
-                            if (sc.decision == "deny") {
-                                decision = "deny";
-                                if (denyCtrl is null) denyCtrl = &c;
-                            }
-                            else if (sc.decision == "ask" && decision != "deny")
-                                decision = "ask";
-                            else if (decision.length == 0)
-                                decision = sc.decision;
+                        if (!cmdMatchesAny(segment, c.cmd))
+                            continue;
+                        if (c.omit.value.length > 0 && !contains(segment, c.omit.value))
+                            continue;
+                        if (c.sessionstart.check !is null && !c.sessionstart.check(cwd, null))
+                            continue;
+                        if (amendment is null && (c.arg.value.length > 0 || c.omit.value.length > 0))
+                            amendment = &c;
+                        if (fallback is null)
+                            fallback = &c;
+                        if (sc.decision == "deny") {
+                            decision = "deny";
+                            if (denyCtrl is null) denyCtrl = &c;
                         }
+                        else if (sc.decision == "ask" && decision != "deny")
+                            decision = "ask";
+                        else if (decision.length == 0)
+                            decision = sc.decision;
                     }
                 }
 
