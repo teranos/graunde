@@ -41,6 +41,12 @@ scope {
       cmd: "gh pr ready"
       msg: "This means the pr is ready to merge"
     }
+
+    control {
+      name: "pr-description-no-stats"
+      cmd: ["gh pr create", "gh pr edit"]
+      msg: "PR descriptions: why, not what. No LOC counts, no file counts, no diff stats — GitHub shows those. No 'Scope' or 'Changes' sections that restate the diff."
+    }
   }
 
   # Deny — hard blocks. "=" prefix means exact match (no trailing args).
@@ -110,7 +116,7 @@ scope {
     control {
       name: "git-checkout-b"
       cmd: "git checkout -b"
-      msg: "Check main for unpushed commits and push them first. Update documentation to describe intended behavior. Ask 1 critical design question. Then open a PR."
+      msg: "Check main for unpushed commits and push them first. Commit the smallest documentation change that describes intended behavior — before any code. Ask 1 critical design question. Then: TDD — failing test, confirm failure, make it pass. Stop after each step for review."
     }
 
     control {

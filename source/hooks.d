@@ -61,7 +61,10 @@ enum HookEvent {
 }
 
 struct Cmd {
-    string value;
+    string[8] _buf;
+    ubyte len;
+    string value() const { return len > 0 ? _buf[0] : ""; }
+    const(string)[] values() const return { return _buf[0 .. len]; }
 }
 
 struct Arg {
@@ -119,7 +122,7 @@ struct Defer {
 }
 
 
-Cmd cmd(string s) { return Cmd(s); }
+Cmd cmd(string s) { Cmd c; c._buf[0] = s; c.len = 1; return c; }
 Arg arg(string s) { return Arg(s); }
 Omit omit(string s) { return Omit(s); }
 struct UserPrompt {

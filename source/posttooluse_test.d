@@ -1,11 +1,11 @@
 module posttooluse_test;
 
 import posttooluse : postToolUseMatch, modeMatches;
-import hooks : Control, Cmd, Msg, FilePath, Mode;
+import hooks : Control, Cmd, cmd, Msg, FilePath, Mode;
 
 // --- cmd matching ---
 
-enum cmdCtrl = () { Control c; c.cmd = Cmd("git commit"); c.msg = Msg("push follows"); return c; }();
+enum cmdCtrl = () { Control c; c.cmd = cmd("git commit"); c.msg = Msg("push follows"); return c; }();
 static assert(postToolUseMatch(cmdCtrl, "git commit -m \"fix\"", null));
 static assert(!postToolUseMatch(cmdCtrl, "git push", null));
 

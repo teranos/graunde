@@ -28,7 +28,10 @@ struct ParsedControl {
     string name;
     string event; // only used for top-level controls (without enclosing scope)
     string mode;  // chmod-style mode (r/w/x/m/a), parsed from control.w syntax
-    string cmd, arg, omit;
+    string[8] cmds;
+    ubyte cmdCount;
+    string cmd() const { return cmdCount > 0 ? cmds[0] : ""; }
+    string arg, omit;
     string[16] triggers;
     ubyte triggerCount;
     string filepath, msg, mcpArg;
@@ -197,7 +200,10 @@ ScopeSet buildScopes(
             Control c;
             c.name = pc.name;
             c.mode = Mode(pc.mode);
-            c.cmd = Cmd(pc.cmd);
+            if (pc.cmdCount > 0) {
+                c.cmd._buf = pc.cmds;
+                c.cmd.len = pc.cmdCount;
+            }
             c.arg = Arg(pc.arg);
             c.omit = Omit(pc.omit);
             c.filepath = FilePath(pc.filepath);
@@ -656,7 +662,21 @@ ParsedControl parseControl(ref string input, ref size_t pos) {
         switch (key) {
             case "name":            c.name = val; break;
             case "event":           c.event = val; break;
-            case "cmd":             c.cmd = val; break;
+            case "cmd":
+                if (val is null) {
+                    while (pos < input.length) {
+                        skipWS(input, pos);
+                        if (pos < input.length && input[pos] == ']') { pos++; break; }
+                        auto item = readValue(input, pos);
+                        assert(c.cmdCount < 8, "Control cmd list overflow");
+                        c.cmds[c.cmdCount++] = item;
+                        skipWS(input, pos);
+                        if (pos < input.length && input[pos] == ',') pos++;
+                    }
+                } else {
+                    c.cmds[0] = val; c.cmdCount = 1;
+                }
+                break;
             // "tool" removed — use control.w/r/x/m/a syntax instead
             case "arg":             c.arg = val; break;
             case "omit":            c.omit = val; break;
