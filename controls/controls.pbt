@@ -352,9 +352,11 @@ scope {
     stop: [
         "each conversation starts fresh",
         "each session starts fresh",
+        "starts with a blank slate",
         "don't have access to previous conversation",
         "don't have access to previous session",
         "don't have access to conversation history",
+        "no conversation history carried over",
         "dialogue isn't stored anywhere",
         "no previous conversation transcripts",
         "no previous conversation history",
