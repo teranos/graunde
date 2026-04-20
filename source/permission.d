@@ -1,6 +1,6 @@
 module permission;
 
-import matcher : wildcardContains, stripQuoted, contains;
+import matcher : wildcardContains, stripQuoted, contains, envSubst;
 import proto : ParseResult, ParsedPermission;
 
 // --- Runtime permission structs ---
@@ -303,14 +303,16 @@ private PermissionResult evaluateSingle(
 
             // Check deny first
             foreach (ref pat; p.deny.values) {
-                if (isBash ? wildcardContains(cmd, pat) : permMatch(fullCommand, pat)) {
+                auto resolved = envSubst(pat, cwd);
+                if (isBash ? wildcardContains(cmd, resolved) : permMatch(fullCommand, resolved)) {
                     return PermissionResult(Decision.deny, p.name, p.msg);
                 }
             }
 
             // Check ask
             foreach (ref pat; p.ask.values) {
-                if (isBash ? wildcardContains(cmd, pat) : permMatch(fullCommand, pat)) {
+                auto resolved = envSubst(pat, cwd);
+                if (isBash ? wildcardContains(cmd, resolved) : permMatch(fullCommand, resolved)) {
                     if (result.decision < Decision.ask) {
                         result.decision = Decision.ask;
                         result.name = p.name;
@@ -320,7 +322,8 @@ private PermissionResult evaluateSingle(
 
             // Check allow
             foreach (ref pat; p.allow.values) {
-                if (isBash ? wildcardContains(cmd, pat) : permMatch(fullCommand, pat)) {
+                auto resolved = envSubst(pat, cwd);
+                if (isBash ? wildcardContains(cmd, resolved) : permMatch(fullCommand, resolved)) {
                     if (result.decision < Decision.allow) {
                         result.decision = Decision.allow;
                         result.name = p.name;
