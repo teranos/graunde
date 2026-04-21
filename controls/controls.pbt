@@ -57,7 +57,7 @@ scope {
       name: "commit-not-requested"
       cmd: "git commit"
       check_handler: "commitNotRequested"
-      msg: "Do not commit. The developer has not verified this work. Tests passing does not confirm correctness — only the developer's manual verification does. Wait for the developer to explicitly request a commit after they have seen the change working."
+      msg: "The developer has not requested a commit. Wait for an explicit commit request."
     }
 
     control {
@@ -298,6 +298,12 @@ scope {
 # Stop — pattern matching on last assistant message
 scope {
   event: "Stop"
+
+  control {
+    name: "commit-means-done"
+    stop: ["want me to commit", "ready to commit", "shall I commit", "commit this", "and commit", "commit the change", "commit and push", "bump*and commit", "commit it"]
+    msg: "A commit means done — provably correct, verified, matching the developer's mental model. It is not a checkpoint, not a deploy, not a test run. Do not suggest committing. Only the developer decides when that bar is met."
+  }
 
   control {
     name: "lazy-verify"

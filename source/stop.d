@@ -116,10 +116,19 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
 
     auto t2 = usecNow();
 
+    long branchUs;
+    const(char)[] branch;
     {
-        import trail : checkTrailControls;
-        auto branch = getBranch(cwd);
+        auto tb0 = usecNow();
+        branch = getBranch(cwd);
+        branchUs = usecNow() - tb0;
+    }
+
+    import trail : checkTrailControls, TrailTiming;
+    TrailTiming trailTiming;
+    {
         auto trailResult = checkTrailControls(branch, db);
+        trailTiming = trailResult.timing;
         if (trailResult.control !is null) {
             import db : attestControlFire;
             attestControlFire(db, "GroundedStop", trailResult.control.name, cwd, sessionId);
@@ -237,7 +246,6 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
 
     // Deliver-based Stop controls — no trigger, main only, compaction-window dedup
     {
-        auto branch = getBranch(cwd);
         if (branch == "main" || branch == "master") {
             import controls : stopScopes;
             import hooks : scopeMatches;
@@ -285,7 +293,6 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
     // Check project-scoped deferred messages (from QNTX)
     // Gate: if cwd is a git repo, only deliver on main/master
     {
-        auto branch = getBranch(cwd);
         if (branch is null || branch == "unknown" || branch == "main" || branch == "master") {
             import deferred : readProjectDeferredMessage, markProjectDelivered;
             auto projDeferred = readProjectDeferredMessage(db, cwd);
@@ -352,7 +359,15 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                         putInt(timingMsg, (t2-t1)/1000);
                         timingMsg.put("ms trail=");
                         putInt(timingMsg, (t3-t2)/1000);
-                        timingMsg.put("ms triggers=");
+                        timingMsg.put("ms(branch=");
+                        putInt(timingMsg, branchUs/1000);
+                        timingMsg.put("ms rsQ=");
+                        putInt(timingMsg, trailTiming.rsQueryUs/1000);
+                        timingMsg.put("ms remQ=");
+                        putInt(timingMsg, trailTiming.reminderQueryUs/1000);
+                        timingMsg.put("ms clipQ=");
+                        putInt(timingMsg, trailTiming.clippyQueryUs/1000);
+                        timingMsg.put("ms) triggers=");
                         putInt(timingMsg, (t4-t3)/1000);
                         timingMsg.put("ms deliver=");
                         putInt(timingMsg, (t5-t4)/1000);
@@ -374,8 +389,11 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
 
     auto t7 = usecNow();
 
-    fprintf(stderr, "STOP-PROFILE parse=%ldus db=%ldus trail=%ldus triggers=%ldus deliver=%ldus deferred=%ldus timing=%ldus total=%ldus\n".ptr,
-        t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6, t7-t0);
+    fprintf(stderr, "STOP-PROFILE parse=%ldus db=%ldus trail=%ldus[branch=%ldus rust=%d rsQ=%ldus remQ=%ldus clipQ=%ldus skip=%d] triggers=%ldus deliver=%ldus deferred=%ldus timing=%ldus total=%ldus\n".ptr,
+        t1-t0, t2-t1, t3-t2, branchUs, cast(int)trailTiming.isRust,
+        trailTiming.rsQueryUs, trailTiming.reminderQueryUs, trailTiming.clippyQueryUs,
+        cast(int)trailTiming.skippedEarly,
+        t4-t3, t5-t4, t6-t5, t7-t6, t7-t0);
 
     sqlite3_close(db);
     return 0;

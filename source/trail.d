@@ -15,22 +15,41 @@ static immutable trailControls = [
         msg("Rust files edited after last cargo clippy run. Run cargo clippy before pushing.")),
 ];
 
+struct TrailTiming {
+    long rustCheckUs;
+    long rsQueryUs;
+    long reminderQueryUs;
+    long clippyQueryUs;
+    bool isRust;
+    bool skippedEarly; // rs query returned 0, skipped rest
+}
+
 struct TrailMatch {
     const(Control)* control;
     const(char)[] reason;
+    TrailTiming timing;
 }
 
 TrailMatch checkTrailControls(const(char)[] branch, sqlite3* db) {
+    import stop : usecNow;
+    TrailMatch result;
+
     foreach (ref c; trailControls) {
         if (c.name == "clippy-reminder") {
-            // Skip for non-Rust projects — no point querying 140k attestations
             import stop : g_cwd;
-            if (!isRustProject(g_cwd)) continue;
-            if (clippyMatch(db, branch))
-                return TrailMatch(&c, c.msg.value);
+            auto t0 = usecNow();
+            auto rust = isRustProject(g_cwd);
+            result.timing.rustCheckUs = usecNow() - t0;
+            result.timing.isRust = rust;
+            if (!rust) continue;
+            if (clippyMatch(db, branch, result.timing)) {
+                result.control = &c;
+                result.reason = c.msg.value;
+                return result;
+            }
         }
     }
-    return TrailMatch(null, null);
+    return result;
 }
 
 // Check if Cargo.toml exists in the working directory.
@@ -51,14 +70,12 @@ bool isRustProject(const(char)[] cwd) {
 // .rs edits, cargo clippy runs, and clippy-reminder deliveries.
 // Timestamps are ISO strings — lexicographic comparison suffices.
 
-bool clippyMatch(sqlite3* db, const(char)[] branch) {
+bool clippyMatch(sqlite3* db, const(char)[] branch, ref TrailTiming timing) {
     import db : buildSubject;
+    import stop : usecNow;
     __gshared ZBuf subjectVal;
     import stop : g_cwd;
     buildSubject(subjectVal, g_cwd, branch);
-
-    // Three targeted queries instead of full table scan.
-    // Each finds the latest timestamp for its category, ordered DESC LIMIT 1.
 
     __gshared char[32] latestClippy = 0;
     __gshared char[32] latestRs = 0;
@@ -68,20 +85,25 @@ bool clippyMatch(sqlite3* db, const(char)[] branch) {
     size_t reminderLen = 0;
 
     // Latest .rs edit (Write or Edit)
-    // Match .rs" — the trailing quote ensures it's a filename ending in .rs inside JSON
     enum rsSql = "SELECT timestamp FROM attestations WHERE json_extract(subjects, '$[0]') = ?1 AND attributes LIKE '%.rs\"%' AND (attributes LIKE '%\"Write\"%' OR attributes LIKE '%\"Edit\"%') ORDER BY timestamp DESC LIMIT 1\0";
+    auto t0 = usecNow();
     rsLen = queryLatestTs(db, rsSql, subjectVal, latestRs);
-    if (rsLen == 0) return false; // no .rs edits — nothing to check
+    timing.rsQueryUs = usecNow() - t0;
+    if (rsLen == 0) { timing.skippedEarly = true; return false; }
 
     // Latest clippy-reminder delivery
     enum reminderSql = "SELECT timestamp FROM attestations WHERE json_extract(subjects, '$[0]') = ?1 AND attributes LIKE '%clippy-reminder%' ORDER BY timestamp DESC LIMIT 1\0";
+    t0 = usecNow();
     reminderLen = queryLatestTs(db, reminderSql, subjectVal, latestReminder);
+    timing.reminderQueryUs = usecNow() - t0;
     if (reminderLen > 0 && compareTs(latestReminder[0 .. reminderLen], latestRs[0 .. rsLen]) >= 0) return false;
 
     // Latest cargo clippy run
     enum clippySql = "SELECT timestamp FROM attestations WHERE json_extract(subjects, '$[0]') = ?1 AND attributes LIKE '%cargo clippy%' ORDER BY timestamp DESC LIMIT 1\0";
+    t0 = usecNow();
     clippyLen = queryLatestTs(db, clippySql, subjectVal, latestClippy);
-    if (clippyLen == 0) return true; // .rs edits but never ran clippy
+    timing.clippyQueryUs = usecNow() - t0;
+    if (clippyLen == 0) return true;
     return compareTs(latestRs[0 .. rsLen], latestClippy[0 .. clippyLen]) > 0;
 }
 
