@@ -423,6 +423,10 @@ FileMatch checkFilePath(const(char)[] filePath, const(char)[] cwd) {
 // Splits pattern on '*', each part must appear in order (case-insensitive).
 // No '*' = plain contains.
 bool wildcardContains(const(char)[] haystack, const(char)[] pattern) {
+    // = prefix: case-sensitive substring match
+    if (pattern.length > 0 && pattern[0] == '=')
+        return containsExact(haystack, pattern[1 .. $]);
+
     // Fast path: no wildcard
     bool hasWild = false;
     foreach (c; pattern)

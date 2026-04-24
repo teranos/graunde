@@ -357,3 +357,11 @@ unittest {
     assert(wildcardContains("check the server log for errors", "check*log*error"));
     assert(!wildcardContains("check the server for errors", "check*log*error"));
 }
+
+unittest {
+    // = prefix: case-sensitive substring match
+    assert(wildcardContains("PR is up on GitHub", "=GitHub"));
+    assert(!wildcardContains("PR is up: https://github.com/foo", "=GitHub"));
+    // Without =, case-insensitive as before
+    assert(wildcardContains("PR is up: https://github.com/foo", "GitHub"));
+}
