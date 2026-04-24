@@ -290,6 +290,8 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
         }
     }
 
+    auto tDeferSess = usecNow();
+
     // Check project-scoped deferred messages (from QNTX)
     // Gate: if cwd is a git repo, only deliver on main/master
     {
@@ -373,7 +375,11 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
                         putInt(timingMsg, (t5-t4)/1000);
                         timingMsg.put("ms deferred=");
                         putInt(timingMsg, (t6-t5)/1000);
-                        timingMsg.put("ms timing=");
+                        timingMsg.put("ms(sessQ=");
+                        putInt(timingMsg, (tDeferSess-t5)/1000);
+                        timingMsg.put("ms projQ=");
+                        putInt(timingMsg, (t6-tDeferSess)/1000);
+                        timingMsg.put("ms) timing=");
                         putInt(timingMsg, (t7-t6)/1000);
                         timingMsg.put("ms]");
                         attestEvent(db, "GroundedStop", cwd, sessionId, `{"control":"timing-regression"}`);
@@ -389,11 +395,30 @@ int handleStop(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) 
 
     auto t7 = usecNow();
 
-    fprintf(stderr, "STOP-PROFILE parse=%ldus db=%ldus trail=%ldus[branch=%ldus rust=%d rsQ=%ldus remQ=%ldus clipQ=%ldus skip=%d] triggers=%ldus deliver=%ldus deferred=%ldus timing=%ldus total=%ldus\n".ptr,
-        t1-t0, t2-t1, t3-t2, branchUs, cast(int)trailTiming.isRust,
-        trailTiming.rsQueryUs, trailTiming.reminderQueryUs, trailTiming.clippyQueryUs,
-        cast(int)trailTiming.skippedEarly,
-        t4-t3, t5-t4, t6-t5, t7-t6, t7-t0);
+    // Build phases string for persistence and stderr
+    {
+        import main : setPhases;
+        __gshared ZBuf prof;
+        prof.reset();
+        prof.put("parse="); putInt(prof, t1-t0);
+        prof.put("us db="); putInt(prof, t2-t1);
+        prof.put("us trail="); putInt(prof, t3-t2);
+        prof.put("us(branch="); putInt(prof, branchUs);
+        prof.put("us rsQ="); putInt(prof, trailTiming.rsQueryUs);
+        prof.put("us remQ="); putInt(prof, trailTiming.reminderQueryUs);
+        prof.put("us clipQ="); putInt(prof, trailTiming.clippyQueryUs);
+        prof.put("us) triggers="); putInt(prof, t4-t3);
+        prof.put("us deliver="); putInt(prof, t5-t4);
+        prof.put("us deferred="); putInt(prof, t6-t5);
+        prof.put("us(sessQ="); putInt(prof, tDeferSess-t5);
+        prof.put("us projQ="); putInt(prof, t6-tDeferSess);
+        prof.put("us) timing="); putInt(prof, t7-t6);
+        prof.put("us total="); putInt(prof, t7-t0);
+        prof.put("us");
+        setPhases(prof.slice());
+        fputs(prof.ptr(), stderr);
+        fputs("\n", stderr);
+    }
 
     sqlite3_close(db);
     return 0;
