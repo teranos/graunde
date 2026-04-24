@@ -3,7 +3,23 @@ module posttooluse;
 import matcher : hasSegment, contains, envSubst;
 import hooks : Control, scopeMatches;
 import parse : extractCommand, extractFilePath, extractToolName, writeJsonString;
-import core.stdc.stdio : stdout, fputs;
+import core.stdc.stdio : stdout, fputs, stderr;
+import db : ZBuf;
+
+void putInt(ref ZBuf buf, long v) {
+    char[20] digits = 0;
+    int dLen = 0;
+    if (v == 0) { digits[0] = '0'; dLen = 1; }
+    else { while (v > 0) { digits[dLen++] = cast(char)('0' + v % 10); v /= 10; } }
+    foreach (i; 0 .. dLen) buf.putChar(digits[dLen - 1 - i]);
+}
+
+void emitProfile(ref ZBuf buf) {
+    import main : setPhases;
+    setPhases(buf.slice());
+    fputs(buf.ptr(), stderr);
+    fputs("\n", stderr);
+}
 
 // Maps a mode character to whether the given tool name matches.
 // r=Read/Glob/Grep/LSP, f=WebFetch/WebSearch, w=Edit/Write/NotebookEdit, x=Bash, m=MCP, a=Agent
@@ -50,16 +66,22 @@ bool postToolUseMatch(const Control c, const(char)[] command, const(char)[] file
 // TODO: extract `tool_response` — the actual result the tool returned (ground only reads tool_input today)
 // TODO: extract `agent_id`, `agent_type` — distinguish subagent tool calls from main session
 int handlePostToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
+    import main : usecNow;
+    auto t0 = usecNow();
+
     auto command = extractCommand(input);
     auto filePath = extractFilePath(input);
     auto toolName = extractToolName(input);
     auto detail = command !is null ? command : (filePath !is null ? filePath : cast(const(char)[])"PostToolUse");
+
+    auto tParse = usecNow();
 
     // Check PostToolUse controls (msg-only fire once per session)
     {
         import controls : postToolUseScopes;
         import db : openDb, attestationExists, sqlite3_close;
         auto db = openDb();
+        auto tDb = usecNow();
 
         foreach (ref scope_; postToolUseScopes) {
             if (!scopeMatches(scope_, cwd)) continue;
@@ -76,6 +98,16 @@ int handlePostToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sess
                 }
                 if (db !is null) sqlite3_close(db);
 
+                auto tFire = usecNow();
+                __gshared ZBuf prof;
+                prof.reset();
+                prof.put("parse="); putInt(prof, tParse-t0);
+                prof.put("us db="); putInt(prof, tDb-tParse);
+                prof.put("us match+fire="); putInt(prof, tFire-tDb);
+                prof.put("us total="); putInt(prof, tFire-t0);
+                prof.put("us exit=control");
+                emitProfile(prof);
+
                 fputs(`{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"`, stdout);
                 writeJsonString(envSubst(c.msg.value, cwd));
                 fputs(`"}}`, stdout);
@@ -84,44 +116,57 @@ int handlePostToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sess
             }
         }
         if (db !is null) sqlite3_close(db);
-    }
 
-    // Check deferred PostToolUse controls
-    {
-        import controls : postToolUseDeferredScopes;
-        foreach (ref scope_; postToolUseDeferredScopes) {
-            if (!scopeMatches(scope_, cwd)) continue;
-            foreach (ref c; scope_.controls) {
-                if (c.cmd.len == 0) continue;
-                bool cmdFound = false;
-                foreach (ref v; c.cmd.values)
-                    if (hasSegment(detail, v)) { cmdFound = true; break; }
-                if (!cmdFound) continue;
-                if (c.trigger.len > 0) {
-                    bool triggerHit = false;
-                    foreach (ref v; c.trigger.values)
-                        if (contains(detail, v)) { triggerHit = true; break; }
-                    if (!triggerHit) continue;
+        auto tControls = usecNow();
+
+        // Check deferred PostToolUse controls
+        {
+            import controls : postToolUseDeferredScopes;
+            foreach (ref scope_; postToolUseDeferredScopes) {
+                if (!scopeMatches(scope_, cwd)) continue;
+                foreach (ref c; scope_.controls) {
+                    if (c.cmd.len == 0) continue;
+                    bool cmdFound = false;
+                    foreach (ref v; c.cmd.values)
+                        if (hasSegment(detail, v)) { cmdFound = true; break; }
+                    if (!cmdFound) continue;
+                    if (c.trigger.len > 0) {
+                        bool triggerHit = false;
+                        foreach (ref v; c.trigger.values)
+                            if (contains(detail, v)) { triggerHit = true; break; }
+                        if (!triggerHit) continue;
+                    }
+
+                    import db : openDb, sqlite3_close;
+                    import deferred : writeDeferredMessage;
+                    auto ddb = openDb();
+                    if (ddb is null) continue;
+
+                    auto delay = c.defer.delayFn !is null
+                        ? c.defer.delayFn(cwd)
+                        : c.defer.delaySec;
+                    writeDeferredMessage(ddb, c.name, cwd, sessionId, c.defer.msg, delay);
+
+                    {
+                        import db : attestControlFire;
+                        attestControlFire(ddb, "GroundedPostToolUseDeferred", c.name, cwd, sessionId);
+                    }
+
+                    sqlite3_close(ddb);
                 }
-
-                import db : openDb, sqlite3_close;
-                import deferred : writeDeferredMessage;
-                auto db = openDb();
-                if (db is null) continue;
-
-                auto delay = c.defer.delayFn !is null
-                    ? c.defer.delayFn(cwd)
-                    : c.defer.delaySec;
-                writeDeferredMessage(db, c.name, cwd, sessionId, c.defer.msg, delay);
-
-                {
-                    import db : attestControlFire;
-                    attestControlFire(db, "GroundedPostToolUseDeferred", c.name, cwd, sessionId);
-                }
-
-                sqlite3_close(db);
             }
         }
+
+        auto tDeferred = usecNow();
+        __gshared ZBuf prof;
+        prof.reset();
+        prof.put("parse="); putInt(prof, tParse-t0);
+        prof.put("us db="); putInt(prof, tDb-tParse);
+        prof.put("us controls="); putInt(prof, tControls-tDb);
+        prof.put("us deferred="); putInt(prof, tDeferred-tControls);
+        prof.put("us total="); putInt(prof, tDeferred-t0);
+        prof.put("us exit=none");
+        emitProfile(prof);
     }
 
     return 0;

@@ -2,7 +2,23 @@ module pretooluse;
 
 import matcher : checkAllCommands, applyArg, applyOmit, indexOf, contains, hasSegment, Buf, envSubst;
 import parse : extractCommand, extractToolName, extractFilePath, extractToolUseId, writeJsonString, fputs2;
-import core.stdc.stdio : stdout, fputs, fwrite;
+import core.stdc.stdio : stdout, fputs, fwrite, stderr, fprintf;
+import db : ZBuf;
+
+void emitProfile(ref ZBuf buf) {
+    import main : setPhases;
+    setPhases(buf.slice());
+    fputs(buf.ptr(), stderr);
+    fputs("\n", stderr);
+}
+
+void putInt(ref ZBuf buf, long v) {
+    char[20] digits = 0;
+    int dLen = 0;
+    if (v == 0) { digits[0] = '0'; dLen = 1; }
+    else { while (v > 0) { digits[dLen++] = cast(char)('0' + v % 10); v /= 10; } }
+    foreach (i; 0 .. dLen) buf.putChar(digits[dLen - 1 - i]);
+}
 
 // Advisory controls inject context without overriding permission prompts.
 // Only explicit "ask" or "deny" should be sent as permissionDecision.
@@ -67,11 +83,17 @@ void writeResponse(const(char)[] command, const(char)[] context, const(char)[] d
 // TODO: extract `agent_id`, `agent_type` — gate subagent tool calls differently from main session
 // TODO: extract `permission_mode` — adjust decisions based on current mode (plan, auto, etc.)
 int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessionId) {
+    import main : usecNow;
+    auto t0 = usecNow();
+    long tParse, tBinary, tMatch, tDb, tPerm;
+
     auto toolName = extractToolName(input);
     auto toolUseId = extractToolUseId(input);
     if (toolUseId is null) toolUseId = "unknown";
 
     auto command = extractCommand(input);
+
+    tParse = usecNow();
 
     if (command !is null) {
         // Make sessionId available to check handlers (e.g. commitNotRequested)
@@ -83,7 +105,7 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
             import binary : checkGitAddForBinary;
             auto binaryFile = checkGitAddForBinary(command, cwd);
             if (binaryFile !is null) {
-                import db : openDb, attestEvent, sqlite3_close, ZBuf;
+                import db : openDb, attestEvent, sqlite3_close;
                 auto db = openDb();
                 if (db !is null) {
                     __gshared ZBuf attrs;
@@ -104,11 +126,14 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
             }
         }
 
+        tBinary = usecNow();
+
         // Bash — check controls
         auto results = checkAllCommands(command, cwd);
+        tMatch = usecNow();
 
         if (results.count > 0) {
-            import db : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;
+            import db : openDb, attestationExists, attestEvent, sqlite3_close;
             auto db = openDb();
 
             const(char)[] finalDecision;
@@ -181,6 +206,18 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
             }
 
             if (db !is null) sqlite3_close(db);
+            tDb = usecNow();
+
+            __gshared ZBuf prof;
+            prof.reset();
+            prof.put("parse="); putInt(prof, tParse-t0);
+            prof.put("us binary="); putInt(prof, tBinary-tParse);
+            prof.put("us match="); putInt(prof, tMatch-tBinary);
+            prof.put("us db="); putInt(prof, tDb-tMatch);
+            prof.put("us total="); putInt(prof, tDb-t0);
+            if (hasDeny) prof.put("us exit=deny");
+            else prof.put("us exit=control");
+            emitProfile(prof);
 
             if (hasDeny) {
                 writeDenyResponse(allMessages.slice());
@@ -209,10 +246,30 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
                     if (seg.length > 0) {
                         auto permResult = evaluatePermission(permissionScopes, cwd, toolName, seg);
                         if (permResult.decision == Decision.deny) {
+                            tPerm = usecNow();
+                            __gshared ZBuf prof;
+                            prof.reset();
+                            prof.put("parse="); putInt(prof, tParse-t0);
+                            prof.put("us binary="); putInt(prof, tBinary-tParse);
+                            prof.put("us match="); putInt(prof, tMatch-tBinary);
+                            prof.put("us perm="); putInt(prof, tPerm-tMatch);
+                            prof.put("us total="); putInt(prof, tPerm-t0);
+                            prof.put("us exit=perm-deny");
+                            emitProfile(prof);
                             writeDenyResponse(permResult.msg);
                             return 0;
                         }
                         if (permResult.decision == Decision.allow) {
+                            tPerm = usecNow();
+                            __gshared ZBuf prof;
+                            prof.reset();
+                            prof.put("parse="); putInt(prof, tParse-t0);
+                            prof.put("us binary="); putInt(prof, tBinary-tParse);
+                            prof.put("us match="); putInt(prof, tMatch-tBinary);
+                            prof.put("us perm="); putInt(prof, tPerm-tMatch);
+                            prof.put("us total="); putInt(prof, tPerm-t0);
+                            prof.put("us exit=perm-allow");
+                            emitProfile(prof);
                             writeResponse(command, "", "allow");
                             return 0;
                         }
@@ -227,6 +284,18 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
             }
         }
 
+        tPerm = usecNow();
+        {
+            __gshared ZBuf prof;
+            prof.reset();
+            prof.put("parse="); putInt(prof, tParse-t0);
+            prof.put("us binary="); putInt(prof, tBinary-tParse);
+            prof.put("us match="); putInt(prof, tMatch-tBinary);
+            prof.put("us perm="); putInt(prof, tPerm-tMatch);
+            prof.put("us total="); putInt(prof, tPerm-t0);
+            prof.put("us exit=bash-none");
+            emitProfile(prof);
+        }
         return 0;
     }
 
@@ -256,7 +325,7 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
         import controls : allScopes;
         import hooks : scopeMatches;
         import parse : extractToolInputRegion;
-        import db : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;
+        import db : openDb, attestationExists, attestEvent, sqlite3_close;
 
         auto db = openDb();
         __gshared Buf mcpMsgBuf;
@@ -305,7 +374,7 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
     if (filePath !is null) {
         import controls : allScopes;
         import hooks : scopeMatches;
-        import db : openDb, attestationExists, attestEvent, sqlite3_close, ZBuf;
+        import db : openDb, attestationExists, attestEvent, sqlite3_close;
 
         auto db = openDb();
         __gshared Buf fileMsgBuf;
@@ -341,6 +410,16 @@ int handlePreToolUse(const(char)[] input, const(char)[] cwd, const(char)[] sessi
             writeContextResponse(fileMsgBuf.slice(), advisoryDecision(fileDecision));
             return 0;
         }
+    }
+
+    auto tEnd = usecNow();
+    {
+        __gshared ZBuf prof;
+        prof.reset();
+        prof.put("parse="); putInt(prof, tParse-t0);
+        prof.put("us total="); putInt(prof, tEnd-t0);
+        prof.put("us exit=none");
+        emitProfile(prof);
     }
     return 0;
 }

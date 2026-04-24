@@ -129,6 +129,20 @@ void printDuration(long t0) {
     fputs("\n", stderr);
 }
 
+// Phase breakdown string — handlers write here, main persists it.
+__gshared char[512] g_phasesBuf = 0;
+__gshared size_t g_phasesLen = 0;
+
+void setPhases(const(char)[] s) {
+    auto n = s.length < g_phasesBuf.length ? s.length : g_phasesBuf.length;
+    foreach (i; 0 .. n) g_phasesBuf[i] = s[i];
+    g_phasesLen = n;
+}
+
+const(char)[] getPhases() {
+    return g_phasesBuf[0 .. g_phasesLen];
+}
+
 void recordTiming(long elapsedUs, const(char)[] hookEvent, const(char)[] project) {
     import db : openDb, sqlite3_exec, sqlite3_prepare_v2, sqlite3_bind_int64,
                     sqlite3_bind_text, sqlite3_step, sqlite3_finalize, sqlite3_close,
@@ -148,10 +162,14 @@ void recordTiming(long elapsedUs, const(char)[] hookEvent, const(char)[] project
     enum migrateProject = "ALTER TABLE timing ADD COLUMN project TEXT\0";
     sqlite3_exec(db, migrateProject.ptr, null, null, null);
 
+    // Migrate: add phases column for per-call breakdown
+    enum migratePhases = "ALTER TABLE timing ADD COLUMN phases TEXT\0";
+    sqlite3_exec(db, migratePhases.ptr, null, null, null);
+
     enum idxTiming = "CREATE INDEX IF NOT EXISTS idx_timing_event_project ON timing(hook_event, project, id)\0";
     sqlite3_exec(db, idxTiming.ptr, null, null, null);
 
-    enum sql = "INSERT INTO timing (duration_us, hook_event, project) VALUES (?1, ?2, ?3)\0";
+    enum sql = "INSERT INTO timing (duration_us, hook_event, project, phases) VALUES (?1, ?2, ?3, ?4)\0";
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db, sql.ptr, -1, &stmt, null) == SQLITE_OK) {
         sqlite3_bind_int64(stmt, 1, elapsedUs);
@@ -159,6 +177,9 @@ void recordTiming(long elapsedUs, const(char)[] hookEvent, const(char)[] project
             sqlite3_bind_text(stmt, 2, hookEvent.ptr, cast(int) hookEvent.length, SQLITE_TRANSIENT);
         if (project.length > 0)
             sqlite3_bind_text(stmt, 3, project.ptr, cast(int) project.length, SQLITE_TRANSIENT);
+        auto phases = getPhases();
+        if (phases.length > 0)
+            sqlite3_bind_text(stmt, 4, phases.ptr, cast(int) phases.length, SQLITE_TRANSIENT);
         sqlite3_step(stmt);
         sqlite3_finalize(stmt);
     }
