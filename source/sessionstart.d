@@ -137,7 +137,12 @@ void attestTypes() {
 // TODO: extract `agent_type` field — adjust controls for agent vs interactive sessions
 // TODO: use `source` field — "startup", "resume", "clear", "compact" — fire different controls per source
 int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] sessionId) {
+    import main : usecNow;
+    auto t0 = usecNow();
+
     attestTypes();
+
+    auto tTypes = usecNow();
 
     // Cache project part of subject for this session (avoids cwd drift when Claude cd's)
     if (sessionId !is null && cwd !is null) {
@@ -164,6 +169,8 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
         }
     }
 
+    auto tSession = usecNow();
+
     // Check for project-scoped deferred messages (from QNTX)
     const(char)[] projectNews = null;
     {
@@ -180,9 +187,13 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
         }
     }
 
+    auto tDeferred = usecNow();
+
     bool isStartup = source is null || contains(source, "startup") || contains(source, "clear");
 
     const(char)[] newerTag = isStartup ? checkTagStaleness() : null;
+
+    auto tVersion = usecNow();
 
     // Iterate sessionstart controls
     import controls : sessionStartScopes;
@@ -247,12 +258,31 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
         }
     }
 
+    auto tControls = usecNow();
+
     if (newerTag !is null) {
         if (any) ctx.put(" | ");
         ctx.put("ground ");
         ctx.put(newerTag);
         ctx.put(" is available at https://github.com/teranos/ground/releases/latest");
         any = true;
+    }
+
+    void emitSessionProfile() {
+        import main : setPhases;
+        import posttooluse : putInt;
+        __gshared ZBuf prof;
+        prof.reset();
+        prof.put("types="); putInt(prof, tTypes-t0);
+        prof.put("us session="); putInt(prof, tSession-tTypes);
+        prof.put("us deferred="); putInt(prof, tDeferred-tSession);
+        prof.put("us version="); putInt(prof, tVersion-tDeferred);
+        prof.put("us controls="); putInt(prof, tControls-tVersion);
+        prof.put("us total="); putInt(prof, usecNow()-t0);
+        prof.put("us");
+        setPhases(prof.slice());
+        fputs(prof.ptr(), stderr);
+        fputs("\n", stderr);
     }
 
     if (projectNews !is null) {
@@ -263,6 +293,7 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
         fwrite(&ctx.data[0], 1, ctx.len, stdout);
         writeJsonString(projectNews);
         fputs(`"}}` ~ "\n", stdout);
+        emitSessionProfile();
         return 0;
     }
 
@@ -270,12 +301,10 @@ int handleSessionStart(const(char)[] source, const(char)[] cwd, const(char)[] se
         fputs(`{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"`, stdout);
         fwrite(&ctx.data[0], 1, ctx.len, stdout);
         fputs(`"}}` ~ "\n", stdout);
+        emitSessionProfile();
         return 0;
     }
 
-    // TODO: compact — compaction summary may lose session-specific context ground injected.
-    //   Re-inject reminders and session state that got lost.
-    // TODO: resume — happens after time away. Merges may have landed on main, branch may be stale.
-    //   Check branch staleness against main, surface recent upstream changes.
+    emitSessionProfile();
     return 0;
 }
