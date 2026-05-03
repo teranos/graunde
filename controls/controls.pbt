@@ -13,6 +13,13 @@ scope {
     }
 
     control {
+      name: "no-co-authored-by"
+      cmd: "git commit"
+      omit_line: "Co-Authored-By:"
+      msg: "Do not add Co-Authored-By lines to commits."
+    }
+
+    control {
       name: "short-commit-message-reminder"
       cmd: "git add"
       msg: "A commit typically follows. Start thinking about the commit message — focus on why, not what."
@@ -46,6 +53,12 @@ scope {
       name: "pr-description-no-stats"
       cmd: ["gh pr create", "gh pr edit"]
       msg: "PR descriptions: why, not what. No LOC counts, no file counts, no diff stats — GitHub shows those. No 'Scope' or 'Changes' sections that restate the diff."
+    }
+
+    control {
+      name: "git-push-pull-first"
+      cmd: "git push"
+      msg: "If you haven't pulled since the last commit, pull first and resolve conflicts before pushing"
     }
   }
 
@@ -87,12 +100,6 @@ scope {
       name: "git-commit"
       cmd: "git commit"
       msg: "Commit requires manual approval"
-    }
-
-    control {
-      name: "git-push-pull-first"
-      cmd: "git push"
-      msg: "If you haven't pulled since the last commit, pull first and resolve conflicts before pushing"
     }
 
     control {
@@ -305,6 +312,18 @@ scope {
   }
 }
 
+# UserPromptSubmit — sbvh-nl reminder
+scope {
+  path: "!/sbvh-nl"
+  event: "UserPromptSubmit"
+
+  control {
+    name: "sbvh-nl-reminder"
+    userprompt: "sbvh-nl"
+    msg: "sbvh-nl is at ~/SBVH/sbvh-nl/ — private repos under the sbvh-nl GitHub org. Read ~/SBVH/sbvh-nl/CLAUDE.md for the repo table and conventions. These are independent repos, not part of QNTX."
+  }
+}
+
 
 # Stop — pattern matching on last assistant message
 scope {
@@ -368,6 +387,12 @@ scope {
     name: "no-pre-existing-excuse"
     stop: "pre-existing"
     msg: "Don't care if it's pre-existing or not. Is there an issue? Fix it NOW or explain the problem more clearly. If we cannot continue, show me the filepaths related to this being a blocker that you cannot overcome. Almost always we can overcome this."
+  }
+
+  control {
+    name: "no-hard-refresh"
+    stop: ["hard refresh", "Cmd+Shift+R", "Ctrl+Shift+R", "clear your cache", "clear the cache", "clear browser cache"]
+    msg: "Do not suggest cache clearing or hard refreshes. The developer always hard refreshes. Assume competence."
   }
 
   control {
