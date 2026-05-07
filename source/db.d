@@ -33,8 +33,7 @@ extern (C) {
     int pclose(FILE* stream);
 }
 
-// Standalone db at ~/.local/share/ground/ground.db — created when QNTX node db is unavailable.
-// QNTX users get the shared node db. All array columns are JSON arrays of strings.
+// All array columns are JSON arrays of strings.
 // Query pattern: WHERE subjects LIKE '%"value"%' — quotes are part of JSON serialization.
 
 public import zbuf : ZBuf;
